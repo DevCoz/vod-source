@@ -1,209 +1,142 @@
 {
-    "sites": [
-        {
-            "key": "csp_Zxzj",
-            "name": "在线之家",
-            "type": 3,
-            "api": "csp_Zxzj",
-            "searchable": 1,
-            "quickSearch": 1,
-            "changeable": 1,
-            "ext": "https://www.zxzj.pro/"
-        },
-        {
-            "key": "Czsapp",
-            "name": "厂长资源",
-            "type": 3,
-            "api": "csp_Czsapp",
-            "playerType": 2,
-            "searchable": 1,
-            "quickSearch": 1,
-            "changeable": 1,
-            "ext": "https://czz9.com/"
-        },
-        {
-            "key": "玩偶哥",
-            "name": "玩偶哥哥",
-            "type": 3,
-            "api": "csp_WoGG",
-            "searchable": 1,
-            "quickSearch": 1,
-            "changeable": 0,
-            "ext": "http://127.0.0.1:9978/file/tvfan/token.txt+4k|auto|fhd$$$https://api.wogg.xyz/$$$关"
-        },
-        {
-            "key": "Olevod",
-            "name": "欧乐影视",
-            "type": 3,
-            "api": "csp_Olevod",
-            "searchable": 1,
-            "quickSearch": 1,
-            "filterable": 1
-        },
-        {
-            "key": "csp_Ddrk",
-            "name": "低端影视",
-            "type": 3,
-            "api": "csp_Ddrk",
-            "playerType": "2",
-            "searchable": 1,
-            "quickSearch": 1,
-            "changeable": 1
-        },
-        {
-            "key": "Gitcafe",
-            "name": "小纸条",
-            "type": 3,
-            "api": "csp_Gitcafe",
-            "searchable": 1,
-            "quickSearch": 1,
-            "filterable": 1,
-            "ext": "https://ju990c.i996.me/TS1/token.json"
-        },
-        {
-            "key": "csp_Jiohub",
-            "name": "JOJO",
-            "type": 3,
-            "api": "csp_Jiohub",
-            "searchable": 1,
-            "quickSearch": 1,
-            "filterable": 1,
-            "changeable": 1
-        },
-        {
-            "key": "app_轻简",
-            "name": "轻简影视",
-            "type": 1,
-            "api": "http://1.ahailove.cn:23456/cj/api.php/provide/vod/",
-            "categories": [
-                "电影",
-                "电视剧",
-                "综艺",
-                "动漫"
-            ]
-        },
-        {
-            "key": "cjzy_暴风资源",
-            "name": "暴风影视",
-            "type": 1,
-            "api": "https://bfzyapi.com/api.php/provide/vod/",
-            "playUrl": "",
-            "categories": [
-                "国产剧",
-                "国产动漫",
-                "大陆综艺",
-                "港台综艺",
-                "香港剧",
-                "台湾剧",
-                "日本剧",
-                "欧美剧",
-                "泰国剧",
-                "日本动漫",
-                "日本综艺",
-                "综艺频道",
-                "新马泰综艺",
-                "纪录片",
-                "科幻片",
-                "喜剧片",
-                "战争片"
-            ]
-        },
-        {
-            "key": "樱花资源",
-            "name": "樱花资源(切)",
-            "type": 1,
-            "api": "https://m3u8.apiyhzy.com/api.php/provide/vod/",
-            "searchable": 1,
-            "quickSearch": 1
-        },
-        {
-            "key": "卧龙资源",
-            "name": "卧龙资源(切)",
-            "type": 1,
-            "api": "https://collect.wolongzyw.com/api.php/provide/vod/",
-            "searchable": 1,
-            "quickSearch": 1
-        },
-        {
-            "key": "百度资源",
-            "name": "百度资源(切)",
-            "type": 1,
-            "api": "https://api.apibdzy.com/api.php/provide/vod/",
-            "searchable": 1,
-            "quickSearch": 1
-        },
-        {
-            "key": "量子资源",
-            "name": "量子资源(切)",
-            "type": 1,
-            "api": "http://cj.lziapi.com/api.php/provide/vod/",
-            "searchable": 1,
-            "quickSearch": 1
-        },
-        {
-            "key": "红牛资源",
-            "name": "红牛资源(切)",
-            "type": 1,
-            "api": "https://www.hongniuzy2.com/api.php/provide/vod/",
-            "searchable": 0,
-            "quickSearch": 0
-        },
-        {
-            "key": "haiwaikan",
-            "name": "海外看",
-            "type": 1,
-            "api": "https://haiwaikan.com/api.php/provide/vod/",
-            "searchable": 1,
-            "changeable": 1,
-            "categories": [
-                "日本动漫",
-                "国产动漫",
-                "欧美动漫",
-                "国产剧",
-                "韩剧",
-                "日剧",
-                "台剧",
-                "泰剧",
-                "港剧",
-                "欧美剧",
-                "动画电影",
-                "韩国综艺",
-                "国产综艺",
-                "日本综艺",
-                "欧美综艺",
-                "冒险片",
-                "剧情片",
-                "动作片",
-                "同性片",
-                "喜剧片",
-                "奇幻片",
-                "恐怖片",
-                "悬疑片",
-                "惊悚片",
-                "战争片",
-                "歌舞片",
-                "灾难片",
-                "爱情片",
-                "犯罪片",
-                "科幻片",
-                "纪录片",
-                "经典片"
-            ]
-        },
-        {
-            "key": "映迷",
-            "name": "映迷（切)",
-            "type": 1,
-            "api": "https://www.inmi.app/api.php/provide/vod/",
-            "searchable": 1,
-            "quickSearch": 1
-        },   
-    {"key":"csp_Dm84","name":"动漫巴士","type":3,"api":"csp_Dm84","searchable":1,"quickSearch":1,"changeable":1},
-    {"key":"csp_Ying","name":"樱花动漫","type":3,"api":"csp_Ying","searchable":1,"quickSearch":1,"changeable":1},
-    {"key":"csp_Ysj","name":"异界动漫","type":3,"api":"csp_Ysj","searchable":1,"quickSearch":1,"changeable":1},
-    {"key":"csp_Anime1","name":"日本动漫","type": 3,"api": "csp_Anime1","searchable": 1,"quickSearch": 1,"changeable":1},
-
-    {"key":"csp_虎牙","name":"虎牙直播","type": 3,"api":"csp_XYQHiker","searchable": 0,"quickSearch": 0,"filterable": 0,"ext":"https://tv.5ye.cc/json/虎牙直播.json"},
-    {"key":"csp_斗鱼","name":"斗鱼直播","type": 3,"api":"csp_XYQBiu","searchable": 0,"quickSearch": 0,"filterable": 0,"ext":"https://tv.5ye.cc/json/斗鱼直播.json"}
-    ]
+  "sites": [
+    {
+      "key": "csp_Zxzj",
+      "name": "在线之家",
+      "type": 3,
+      "api": "csp_Zxzj",
+      "searchable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "ext": "https://www.zxzj.pro/"
+    },
+    {
+      "key": "csp_Ddrk",
+      "name": "低端影视",
+      "type": 3,
+      "api": "csp_Ddrk",
+      "playerType": "2",
+      "searchable": 1,
+      "quickSearch": 1,
+      "changeable": 1
+    },
+    {
+      "key": "Czsapp",
+      "name": "厂长资源",
+      "type": 3,
+      "api": "csp_Czsapp",
+      "playerType": 2,
+      "searchable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "ext": "https://czz9.com/"
+    },
+    {
+      "key": "Olevod",
+      "name": "欧乐影院",
+      "type": 3,
+      "api": "csp_Olevod",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1
+    },
+    {
+      "key": "映迷",
+      "name": "映迷",
+      "type": 1,
+      "api": "https://www.inmi.app/api.php/provide/vod/",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "唐人街",
+      "name": "唐人街(切)",
+      "type": 1,
+      "api": "https://www.tangrenjie.tv/api.php/provide/vod/",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "haiwaikan",
+      "name": "海外看",
+      "type": 1,
+      "api": "https://haiwaikan.com/api.php/provide/vod/",
+      "searchable": 1,
+      "changeable": 1,
+      "categories": [
+        "日本动漫",
+        "国产动漫",
+        "欧美动漫",
+        "国产剧",
+        "韩剧",
+        "日剧",
+        "台剧",
+        "泰剧",
+        "港剧",
+        "欧美剧",
+        "动画电影",
+        "韩国综艺",
+        "国产综艺",
+        "日本综艺",
+        "欧美综艺",
+        "冒险片",
+        "剧情片",
+        "动作片",
+        "同性片",
+        "喜剧片",
+        "奇幻片",
+        "恐怖片",
+        "悬疑片",
+        "惊悚片",
+        "战争片",
+        "歌舞片",
+        "灾难片",
+        "爱情片",
+        "犯罪片",
+        "科幻片",
+        "纪录片",
+        "经典片"
+      ]
+    },
+    {
+      "key": "csp_Missav",
+      "name": "MISSAV",
+      "type": 3,
+      "api": "csp_Missav",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "changeable": 1
+    },
+    {
+      "key": "csp_Jiohub",
+      "name": "JOJO",
+      "type": 3,
+      "api": "csp_Jiohub",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "changeable": 1
+    },
+    {
+      "key": "Gitcafe",
+      "name": "小纸条",
+      "type": 3,
+      "api": "csp_Gitcafe",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "ext": "https://ju990c.i996.me/TS1/token.json"
+    },
+    {
+      "key": "wogg",
+      "name": "玩偶哥哥",
+      "type": 3,
+      "api": "csp_WoGG",
+      "searchable": 1,
+      "quickSearch": 1,
+      "changeable": 0,
+      "ext": "http://127.0.0.1:9978/file/tvfan/token.txt+4k|auto|fhd$$$https://api.wogg.xyz/$$$\u5173"
+    }
+  ]
 }
