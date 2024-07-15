@@ -13,11 +13,5 @@
 	  {"name": "玩偶哥哥", "type": 3, "api": "csp_WoGG"},
 	  {"name": "阿里小站", "type": 3, "api": "csp_pan666"},
 	  {"name": "云盘资源", "type": 3, "api": "csp_yunpan"},
-	  {"name": "玩偶表哥", "type": 3, "api": "csp_wobg"},
-	  {"name": "360|点播", "type": 1, "api": "https://360zy.com/api.php/provide/vod/"}, 
-	  {"name": "黑木耳|点播", "type": 1, "api": "https://www.heimuer.tv/api.php/provide/vod"},
-	  {"name": "映迷|点播", "type": 1, "api": "https://www.inmi.app/api.php/provide/vod/at/xml"},
-	  {"name": "华为吧|点播", "type": 1, "api": "https://hw8.live/api.php/provide/vod/"}, 
-	  {"name": "非凡|点播", "type": 1, "api": "http://cj.ffzyapi.com/api.php/provide/vod/"}, 
-	  {"name": "量子|点播", "type": 1, "api": "https://cj.lziapi.com/api.php/provide/vod/"} 
+	  {"name": "玩偶表哥", "type": 3, "api": "csp_wobg"}
   ]}
