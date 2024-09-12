@@ -9,48 +9,6 @@
         { "name": "LIBVIO", "type": 3, "api": "csp_libvio" },
         { "name": "AGE动漫", "type": 3, "api": "csp_age" },
         { "name": "ギリギリ动漫", "type": 3, "api": "csp_girlgirllove" },
-	{"name": "MISSAV", "type": 3, "api": "csp_Missav"},
-        {
-            "name": "4k-av",
-            "type": 3,
-            "api": "csp_4kav",
-            "ext": "https://git.886.be/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/4kav.js"
-        },
-        {
-            "name": "韓劇看看",
-            "type": 3,
-            "api": "csp_hjkk",
-            "ext": "https://git.886.be/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/hjkk.js"
-        },
-        {
-            "name": "金牌影院",
-            "type": 3,
-            "api": "csp_jpyy",
-            "ext": "https://git.886.be/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/jpyy.js"
-        },
-        {
-            "name": "燒火電影",
-            "type": 3,
-            "api": "csp_saohuo",
-            "ext": "https://git.886.be/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/saohuo.js"
-        },
-        {
-            "name": "素白白影視",
-            "type": 3,
-            "api": "csp_subaibai",
-            "ext": "https://git.886.be/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/subaibai.js"
-        },
-        {
-            "name": "兩個BT",
-            "type": 3,
-            "api": "csp_bttwo",
-            "ext": "https://git.886.be/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/bttwo.js"
-        },
-        {
-            "name": "NO視頻",
-            "type": 3,
-            "api": "csp_novipnoad",
-            "ext": "https://git.886.be/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/novipnoad.js"
-        }
+	{"name": "MISSAV", "type": 3, "api": "csp_Missav"}
     ]
 }
