@@ -1,76 +1,76 @@
-  {
+{
     "sites": [
-        { 
-            "name": "低端影视", 
-            "type": 3, 
-            "api": "csp_Ddrk" 
-        },
-        { 
-            "name": "厂长资源", 
-            "type": 3, 
-            "api": "csp_Czsapp" 
-        },
-        { 
-            "name": "绝缘影视", 
-            "type": 3, 
-            "api": "csp_Bdys" 
-        },
-        { 
-            "name": "欧乐影院", 
-            "type": 3, 
-            "api": "csp_Olevod" 
-        },
-        { 
-            "name": "独播库", 
-            "type": 3, 
-            "api": "csp_duboku" 
-        },
-        { 
-            "name": "在线之家", 
-            "type": 3, 
-            "api": "csp_Zxzj" 
-        },
-        { 
-            "name": "LIBVIO", 
-            "type": 3, 
-            "api": "csp_libvio" 
-        },
-        { 
-            "name": "AGE动漫", 
-            "type": 3, 
-            "api": "csp_age" 
+        {
+            "name": "低端影视",
+            "type": 3,
+            "api": "csp_Ddrk"
         },
         {
-            "name": "ギリギリ动漫", 
-            "type": 3, 
-            "api": "csp_girlgirllove" 
-        },
-        { 
-            "name": "小纸条|网盘", 
-            "type": 3, 
-            "api": "csp_Gitcafe" 
-        },
-        { 
-            "name": "玩偶哥哥|网盘", 
-            "type": 3, 
-            "api": "csp_WoGG" 
-        },
-        { 
-            "name": "阿里小站|网盘", 
-            "type": 3, 
-            "api": "csp_pan666" 
-        },
-        { 
-            "name": "云盘资源|网盘", 
-            "type": 3, 
-            "api": "csp_yunpan" 
+            "name": "厂长资源",
+            "type": 3,
+            "api": "csp_Czsapp"
         },
         {
-            "name": "南風短劇 | PAN",
+            "name": "绝缘影视",
+            "type": 3,
+            "api": "csp_Bdys"
+        },
+        {
+            "name": "欧乐影院",
+            "type": 3,
+            "api": "csp_Olevod"
+        },
+        {
+            "name": "独播库",
+            "type": 3,
+            "api": "csp_duboku"
+        },
+        {
+            "name": "在线之家",
+            "type": 3,
+            "api": "csp_Zxzj"
+        },
+        {
+            "name": "LIBVIO",
+            "type": 3,
+            "api": "csp_libvio"
+        },
+        {
+            "name": "AGE动漫",
+            "type": 3,
+            "api": "csp_age"
+        },
+        {
+            "name": "ギリギリ动漫",
+            "type": 3,
+            "api": "csp_girlgirllove"
+        },
+        {
+            "name": "小纸条",
+            "type": 3,
+            "api": "csp_Gitcafe"
+        },
+        {
+            "name": "玩偶哥哥",
+            "type": 3,
+            "api": "csp_WoGG"
+        },
+        {
+            "name": "阿里小站",
+            "type": 3,
+            "api": "csp_pan666"
+        },
+        {
+            "name": "云盘资源",
+            "type": 3,
+            "api": "csp_yunpan"
+        },
+        {
+            "name": "南風短劇|PAN",
             "type": 3,
             "api": "csp_nanfdj",
             "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/nanfdj.js",
             "ext2": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/nanfdj.js"
-        }    
+        }
     ]
 }
