@@ -1,8 +1,0 @@
-{
-    "sites": [
-        { "name": "小纸条", "type": 3, "api": "csp_Gitcafe" },
-        { "name": "玩偶哥哥", "type": 3, "api": "csp_WoGG" },
-        { "name": "阿里小站", "type": 3, "api": "csp_pan666" },
-        { "name": "云盘资源", "type": 3, "api": "csp_yunpan" }
-    ]
-}
