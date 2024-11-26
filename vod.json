@@ -1,29 +1,9 @@
 {
     "sites": [
         {
-            "name": "低端影视",
-            "type": 3,
-            "api": "csp_Ddrk"
-        },
-        {
-            "name": "厂长资源",
-            "type": 3,
-            "api": "csp_Czsapp"
-        },
-        {
-            "name": "绝缘影视",
-            "type": 3,
-            "api": "csp_Bdys"
-        },
-        {
             "name": "欧乐影院",
             "type": 3,
             "api": "csp_Olevod"
-        },
-        {
-            "name": "独播库",
-            "type": 3,
-            "api": "csp_duboku"
         },
         {
             "name": "在线之家",
@@ -35,15 +15,128 @@
             "type": 3,
             "api": "csp_libvio"
         },
-        {
-            "name": "AGE动漫",
-            "type": 3,
-            "api": "csp_age"
+        { 
+            "name": "低端影视", 
+            "type": 3, 
+            "api": "csp_ddys",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ddys.js",
+        },
+         { 
+            "name": "ギリギリ动漫", 
+            "type": 3, 
+            "api": "csp_ai",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ai.js",
+            "ext2": "https://ghp.ci/https://gist.githubusercontent.com/occupy-pluto/5185fa59944d5b8af625b2c83604d397/raw/72a08d19b0df289e749f3534e7a012e1d9e126f4/girl.js",
+        },
+        { 
+            "name": "独播库", 
+            "type": 3, 
+            "api": "csp_duboku",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/duboku.js",
+            "ext2": "https://ghp.ci/https://gist.githubusercontent.com/occupy-pluto/f6cf4425bf7d1815a26323ade89ea593/raw/e681ea88557c1bf71f328665375ba392bf3955cd/duboku.js",
+        },
+        { 
+            "name": "AGE动漫", 
+            "type": 3, 
+            "api": "csp_age",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/age.js",
+            "ext2": "https://ghp.ci/https://gist.githubusercontent.com/occupy-pluto/e3a7bb98d5027d0f6dfa85fc2ac11a78/raw/d2656fa8fb51dbe5239f688ea36422f9bf8a0457/agedm.js"
         },
         {
-            "name": "ギリギリ动漫",
+            "name": "4k-av",
             "type": 3,
-            "api": "csp_girlgirllove"
+            "api": "csp_4kav",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/4kav.js"
+        },
+        {
+            "name": "韓劇看看",
+            "type": 3,
+            "api": "csp_hjkk",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/hjkk.js"
+        },
+        {
+            "name": "金牌影院",
+            "type": 3,
+            "api": "csp_jpyy",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/jpyy.js"
+        },
+        {
+            "name": "燒火電影",
+            "type": 3,
+            "api": "csp_saohuo",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/saohuo.js"
+        },
+        {
+            "name": "素白白影視",
+            "type": 3,
+            "api": "csp_subaibai",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/subaibai.js"
+        },
+        {
+            "name": "兩個BT",
+            "type": 3,
+            "api": "csp_bttwo",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/bttwo.js"
+        },
+        {
+            "name": "NO視頻",
+            "type": 3,
+            "api": "csp_novipnoad",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/novipnoad.js"
+        },
+        {
+            "name": "星芽短劇",
+            "type": 3,
+            "api": "csp_xingya",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/xingya.js"
+        },
+        {
+            "name": "瓜子",
+            "type": 3,
+            "api": "csp_guazi",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/gzys.js"
+        },
+        {
+            "name": "anfuns",
+            "type": 3,
+            "api": "csp_anfuns",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/anfuns.js"
+        },
+        {
+            "name": "愛壹帆",
+            "type": 3,
+            "api": "csp_iyftv",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/iyftv.js"
+        },
+        {
+            "name": "天天影視",
+            "type": 3,
+            "api": "csp_tiantian",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/tiantian.js"
+        },
+        {
+            "name": "囧次元",
+            "type": 3,
+            "api": "csp_jcy",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/jcy.js"
+        },
+        {
+            "name": "hdmoli",
+            "type": 3,
+            "api": "csp_hdmoli",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/refs/heads/main/js/hdmoli.js"
+        },
+        {
+            "name": "nmlive",
+            "type": 3,
+            "api": "csp_nmlive",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/nmlive.js"
+        },
+        {
+            "name": "小蘋果",
+            "type": 3,
+            "api": "csp_apple",
+            "ext": "https://ghp.ci/https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/apple.js"
         }
     ]
 }
