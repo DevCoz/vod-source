@@ -88,8 +88,8 @@ async function getTracks(ext) {
     playlist.each((index, e) => {
         const eps = $(e).find('li')
         let group = {
-          title: `線路${index + 1}`,
-          tracks: []
+            title: `線路${index + 1}`,
+            tracks: [],
         }
         eps.each((_, e) => {
             const name = $(e).find('a').text()
@@ -107,8 +107,8 @@ async function getTracks(ext) {
 
     const panlist = $('.stui-vodlist__text.downlist p')
     const pangroup = {
-      title: '',
-      tracks: []
+        title: '',
+        tracks: [],
     }
     panlist.each((_, e) => {
         const name = $(e).find('b').text().replace('：', '')
@@ -119,7 +119,7 @@ async function getTracks(ext) {
         })
     })
     groups.push(pangroup)
-  
+
     return jsonify({
         list: groups,
     })
@@ -141,10 +141,12 @@ async function getPlayinfo(ext) {
     if (encUrl.endsWith('.mp4')) {
         return jsonify({
             urls: ['https://v.damoli.pro/v/' + encUrl],
-            headers: [{
-              'User-Agent': UA,
-              Referer: 'https://hdmoli.pro/',
-            }] 
+            headers: [
+                {
+                    'User-Agent': UA,
+                    Referer: 'https://hdmoli.pro/',
+                },
+            ],
         })
     }
 
@@ -160,8 +162,8 @@ async function getPlayinfo(ext) {
     const encData = argsify(parseRes.data).url
     const realUrl = decryptUrl(encData)
 
-    return jsonify({ 
-      urls: [realUrl]
+    return jsonify({
+        urls: [realUrl],
     })
 }
 
