@@ -1,4 +1,4 @@
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1 Edg/131.0.0.0'
 const cheerio = createCheerio()
 
 const appConfig = {
@@ -276,18 +276,35 @@ async function getTracks(ext) {
             'User-Agent': UA,
         },
     })
+    const match1 = data.match(/sixyik\.com\\\/(.+)\\\/seek\\\/_0\.jpg/)
+    const match2 = data.match(/https\|video\|(.+)\|source1280/)
+    if (match1 && match1[1]) {
+        let uuid = match1[1]
+        if (match2[1] == '1080p') {
+            tracks.push({
+                name: '1080P',
+                pan: '',
+                ext: {
+                    url: m3u8Prefix + uuid + '/1080p/video.m3u8',
+                }
+            })
 
-    const match = data.match(/sixyik\.com\\\/(.+)\\\/seek\\\/_0\.jpg/)
-    if (match && match[1]) {
-        let uuid = match[1]
-        let m3u8 = m3u8Prefix + uuid + m3u8Suffix
-
+        }
+        if (match2[1] == '720p') {
+            tracks.push({
+                name: '720P',
+                pan: '',
+                ext: {
+                    url: m3u8Prefix + uuid + '/720p/video.m3u8',
+                }
+            })
+        }
         tracks.push({
-            name: '播放',
+            name: '自动',
             pan: '',
             ext: {
-                url: m3u8,
-            },
+                url: m3u8Prefix + uuid + m3u8Suffix,
+            }
         })
     }
 
@@ -330,7 +347,7 @@ async function search(ext) {
         const title = $(e).find('.text-secondary').text().trim().replace(/\s+/g, ' ')
         const cover = $(e).find('.w-full').attr('data-src')
         const duration = $(e).find('.right-1').text().trim()
-        
+
         cards.push({
             vod_id: href,
             vod_name: title,
