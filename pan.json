@@ -1,64 +1,40 @@
 {
     "sites": [
         { 
-            "name": "玩偶哥哥☁️", 
+            "name": "玩偶哥哥", 
             "type": 3, 
             "api": "csp_wogg",
             "ext": "https://gist.githubusercontent.com/occupy-pluto/ad857b12b6b8adebd99b8de42d87b983/raw/wogg.js"
         },
         {
-            "name": "多多影音☁️",
-            "type": 3,
-            "api": "csp_yydsys",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/yydsys.js"
-        },
-        {
-            "name": "蜡笔盘☁️",
-            "type": 3,
-            "api": "csp_labi",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/labipan.js"
-        },
-        {
-            "name": "木偶☁️",
-            "type": 3,
-            "api": "csp_muou",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/muou.js"
-        },
-        {
-            "name": "小米☁️",
-            "type": 3,
-            "api": "csp_mihdr",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/mihdr.js"
-        },
-        {
-            "name": "云盘资源网☁️",
+            "name": "云盘资源网",
             "type": 3,
             "api": "csp_yunpanres",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/yunpanres.js"
         },
-        {
-            "name": "校长影视☁️",
-            "type": 3,
-            "api": "csp_xzys",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/xzys.js"
-        },
-        {
-            "name": "雷鲸☁️",
-            "type": 3,
-            "api": "csp_leijing",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/leijing.js"
-        },
-        {
-            "name": "欧哥☁️",
-            "type": 3,
-            "api": "csp_ouge",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ouge.js"
-        },
-        {
-            "name": "云盘吧☁️",
+         {
+            "name": "云盘吧",
             "type": 3,
             "api": "csp_yunpan8",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/yunpan8.js"
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/yunpan8.js"
+        },
+         {
+            "name": "SeedHub",
+            "type": 3,
+            "api": "csp_seedhub",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/seedhub.js" 
+        },
+        {
+            "name": "Star2",
+            "type": 3,
+            "api": "csp_star2",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/star2.js" 
+        },
+        {
+            "name": "TG搜",
+            "type": 3,
+            "api": "csp_tgs",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/tgs.js" 
         }
     ]
 }
