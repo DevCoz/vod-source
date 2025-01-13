@@ -1,10 +1,10 @@
-const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1 Edg/131.0.0.0'
 const cheerio = createCheerio()
+const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/604.1.14 (KHTML, like Gecko)'
 
 const appConfig = {
     ver: 1,
     title: 'missav',
-    site: 'https://missav.com',
+    site: 'https://missav.ws',
     tabs: [
         {
             name: '中文字幕',
@@ -237,18 +237,23 @@ async function getCards(ext) {
     })
 
     const $ = cheerio.load(data)
+    const t1 = $('title').text()
+    if (t1 === 'Just a moment...') {
+    $utils.openSafari(appConfig.site, UA)
+      }
 
     const videos = $('.thumbnail')
     videos.each((_, e) => {
         const href = $(e).find('.text-secondary').attr('href')
         const title = $(e).find('.text-secondary').text().trim().replace(/\s+/g, ' ')
         const cover = $(e).find('.w-full').attr('data-src')
+        const remarks = $(e).find('.left-1').text().trim()
         const duration = $(e).find('.right-1').text().trim()
         let obj = {
             vod_id: href,
             vod_name: title,
             vod_pic: cover,
-            vod_remarks: '',
+            vod_remarks: remarks,
             vod_duration: duration,
 
             ext: {
@@ -276,7 +281,7 @@ async function getTracks(ext) {
             'User-Agent': UA,
         },
     })
-    const match1 = data.match(/sixyik\.com\\\/(.+)\\\/seek\\\/_0\.jpg/)
+    const match1 = data.match(/nineyu\.com\\\/(.+)\\\/seek\\\/_0\.jpg/)
     const match2 = data.match(/https\|video\|(.+)\|source1280/)
     if (match1 && match1[1]) {
         let uuid = match1[1]
@@ -346,13 +351,14 @@ async function search(ext) {
         const href = $(e).find('.text-secondary').attr('href')
         const title = $(e).find('.text-secondary').text().trim().replace(/\s+/g, ' ')
         const cover = $(e).find('.w-full').attr('data-src')
+        const remarks = $(e).find('.left-1').text().trim()
         const duration = $(e).find('.right-1').text().trim()
 
         cards.push({
             vod_id: href,
             vod_name: title,
             vod_pic: cover,
-            vod_remarks: '',
+            vod_remarks: remarks,
             vod_duration: duration,
 
             ext: {

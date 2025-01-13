@@ -70,7 +70,10 @@ $('.topicItem').each((index, each) => {
   if ($(each).find('.cms-lock-solid').length > 0) return;
     
   const href = $(each).find('h2 a').attr('href');
-  const title = $(each).find('h2 a').text().trim().replace(/\s+/g, ' ');
+  const title = $(each).find('h2 a').text()
+  const regex = /(?:【.*?】)?(?:（.*?）)?([^\s.（]+(?:\s+[^\s.（]+)*)/;
+  const match = title.match(regex);
+  const dramaName = match ? match[1] : title; 
   const r = $(each).find('.summary').text();
   const tag = $(each).find('.tag').text();
     
@@ -79,7 +82,7 @@ $('.topicItem').each((index, each) => {
 
   cards.push({
     vod_id: href,
-    vod_name: title,
+    vod_name: dramaName,
     vod_pic: '',
     vod_remarks: '',
     ext: {
@@ -164,7 +167,10 @@ $('.topicItem').each((index, each) => {
   if ($(each).find('.cms-lock-solid').length > 0) return;
   
   const href = $(each).find('h2 a').attr('href');
-  const title = $(each).find('h2 a').text().trim().replace(/\s+/g, ' ');
+  const title = $(each).find('h2 a').text()
+  const regex = /(?:【.*?】)?(?:（.*?）)?([^\s.（]+(?:\s+[^\s.（]+)*)/;
+  const match = title.match(regex);
+  const dramaName = match ? match[1] : title; 
   const r = $(each).find('.summary').text();
   const tag = $(each).find('.tag').text();
     
@@ -173,7 +179,7 @@ $('.topicItem').each((index, each) => {
 
   cards.push({
     vod_id: href,
-    vod_name: title,
+    vod_name: dramaName,
     vod_pic: '',
     vod_remarks: '',
     ext: {
