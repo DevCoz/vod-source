@@ -12,7 +12,7 @@ const UA = 'MOBILE_UA'
 let appConfig = {
     ver: 1,
     title: 'tg搜索',
-    site: 'https://t.me/s/',
+    site: 'https://tgs.xptvhelper.link/s/',
     // tabs: [
     //     {
     //         name: '只能搜索',
@@ -136,7 +136,7 @@ async function getCards(ext) {
         })
 
         let nextPage = $('.js-messages_more_wrap a').attr('href')
-        nextPage = nextPage ? `https://t.me${nextPage}` : ''
+        nextPage = nextPage ? `https://tgs.xptvhelper.link${nextPage}` : ''
         if (nextPage) {
             let config = {
                 hasMore: true,
@@ -234,7 +234,7 @@ async function search(ext) {
                     $(element)
                         .find('.tgme_widget_message_text > a')
                         .each((_, element) => {
-                            const href = $(element).attr('href').replace(/(115cdn\.com)|(anxia\.com)/, '115.com')
+                            const href = $(element).attr('href').replace(/(115\.com)|(anxia\.com)|(115cdn\.com)/, '115.com')
                             if (href.match(/https:\/\/(.+)\/(s|t)\/(.+)/)) {
                                 hrefs.push(href)
                             }
