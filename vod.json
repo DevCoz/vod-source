@@ -13,7 +13,7 @@
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/bdys.js"
         },
         { 
-            "name": "欧乐影院", 
+            "name": "欧乐影视", 
             "type": 3, 
             "api": "csp_Olevod",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ole.js",
@@ -67,7 +67,7 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/4kav.js"
         },
         {
-            "name": "韓劇看看",
+            "name": "韩剧看看",
             "type": 3,
             "api": "csp_hjkk",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/hjkk.js"
@@ -91,12 +91,6 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/subaibai.js"
         },
         {
-            "name": "兩個BT",
-            "type": 3,
-            "api": "csp_bttwo",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/bttwo.js"
-        },
-        {
             "name": "NO視頻",
             "type": 3,
             "api": "csp_novipnoad",
@@ -115,7 +109,7 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/anfuns.js"
         },
         {
-            "name": "愛壹帆",
+            "name": "爱壹帆",
             "type": 3,
             "api": "csp_iyftv",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/iyftv.js"
@@ -125,12 +119,6 @@
             "type": 3,
             "api": "csp_tiantian",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/tiantian.js"
-        },
-        {
-            "name": "囧次元",
-            "type": 3,
-            "api": "csp_jcy",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/jcy.js"
         },
         {
             "name": "追光影视",
@@ -157,10 +145,22 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/apple.js"
         },
         {
-            "name": "皮皮蝦",
+            "name": "老地方",
             "type": 3,
-            "api": "csp_ppxys",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/ppxys.js"
+            "api": "csp_laodifang",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/laodifang.js"
+        },
+        {
+            "name": "嗷嗚動漫",
+            "type": 3,
+            "api": "csp_aowu",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/aowu.js"
+        },
+        {
+            "name": "小紅影視",
+            "type": 3,
+            "api": "csp_xiaohys",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/xiaohys.js"
         }
     ]
 }
