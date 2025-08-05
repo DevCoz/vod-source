@@ -16,22 +16,19 @@
             "name": "欧乐影视", 
             "type": 3, 
             "api": "csp_Olevod",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ole.js",
-            "ext2": "https://gist.githubusercontent.com/occupy-pluto/ce9bf8248a15acb87e6b55e382fb8e4b/raw/ole.js"
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ole.js"
         },
         { 
             "name": "在线之家", 
             "type": 3, 
             "api": "csp_Zxzj",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/zxzj.js",
-            "ext2": "https://gist.githubusercontent.com/occupy-pluto/13a199a1a85c619f948d40e6c5a12c21/raw/zxzj.js"
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/zxzj.js"
         },
         { 
             "name": "LIBVIO", 
             "type": 3, 
             "api": "csp_libvio",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/libvio.js",
-            "ext2": "https://gist.githubusercontent.com/occupy-pluto/67cc3a53a26c631e32ed2f37e19e479d/raw/libvio.js"
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/libvio.js"
         },
         { 
             "name": "低端影视", 
@@ -43,22 +40,19 @@
             "name": "ギリギリ动漫", 
             "type": 3, 
             "api": "csp_ai",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ai.js",
-            "ext2": "https://gist.githubusercontent.com/occupy-pluto/5185fa59944d5b8af625b2c83604d397/raw/girl.js"
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ai.js"
         },
         { 
             "name": "独播库", 
             "type": 3, 
             "api": "csp_duboku",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/duboku.js",
-            "ext2": "https://gist.githubusercontent.com/occupy-pluto/f6cf4425bf7d1815a26323ade89ea593/raw/duboku.js"
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/duboku.js"
         },
         { 
             "name": "AGE动漫", 
             "type": 3, 
             "api": "csp_age",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/age.js",
-            "ext2": "https://gist.githubusercontent.com/occupy-pluto/e3a7bb98d5027d0f6dfa85fc2ac11a78/raw/agedm.js"
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/age.js"
         },
         {
             "name": "4k-av",
@@ -67,7 +61,7 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/4kav.js"
         },
         {
-            "name": "韩剧看看",
+            "name": "韓劇看看",
             "type": 3,
             "api": "csp_hjkk",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/hjkk.js"
@@ -97,7 +91,13 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/novipnoad.js"
         },
         {
-            "name": "瓜子影视",
+            "name": "星芽短劇",
+            "type": 3,
+            "api": "csp_xingya",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/xingya.js"
+        },
+        {
+            "name": "瓜子影子",
             "type": 3,
             "api": "csp_guazi",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/gzys.js"
@@ -109,7 +109,7 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/anfuns.js"
         },
         {
-            "name": "爱壹帆",
+            "name": "愛壹帆",
             "type": 3,
             "api": "csp_iyftv",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/iyftv.js"
@@ -161,6 +161,12 @@
             "type": 3,
             "api": "csp_xiaohys",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/xiaohys.js"
+        },
+        {
+            "name": "零度影視",
+            "type": 3,
+            "api": "csp_zero",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/zero.js"
         }
     ]
 }
