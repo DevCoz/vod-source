@@ -12,45 +12,45 @@
             "api": "csp_bde4",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/bdys.js"
         },
-        { 
-            "name": "欧乐影视", 
-            "type": 3, 
+        {
+            "name": "欧乐影视",
+            "type": 3,
             "api": "csp_Olevod",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ole.js"
         },
-        { 
-            "name": "在线之家", 
-            "type": 3, 
+        {
+            "name": "在线之家",
+            "type": 3,
             "api": "csp_Zxzj",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/zxzj.js"
         },
-        { 
-            "name": "LIBVIO", 
-            "type": 3, 
+        {
+            "name": "LIBVIO",
+            "type": 3,
             "api": "csp_libvio",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/libvio.js"
         },
-        { 
-            "name": "低端影视", 
-            "type": 3, 
+        {
+            "name": "低端影视",
+            "type": 3,
             "api": "csp_ddys",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ddys.js"
         },
-         { 
-            "name": "ギリギリ动漫", 
-            "type": 3, 
+        {
+            "name": "ギリギリ动漫",
+            "type": 3,
             "api": "csp_ai",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ai.js"
         },
-        { 
-            "name": "独播库", 
-            "type": 3, 
+        {
+            "name": "独播库",
+            "type": 3,
             "api": "csp_duboku",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/duboku.js"
         },
-        { 
-            "name": "AGE动漫", 
-            "type": 3, 
+        {
+            "name": "AGE动漫",
+            "type": 3,
             "api": "csp_age",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/age.js"
         },
@@ -89,12 +89,6 @@
             "type": 3,
             "api": "csp_novipnoad",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/novipnoad.js"
-        },
-        {
-            "name": "星芽短劇",
-            "type": 3,
-            "api": "csp_xingya",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/xingya.js"
         },
         {
             "name": "瓜子影子",
@@ -167,6 +161,48 @@
             "type": 3,
             "api": "csp_zero",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/zero.js"
+        },
+        {
+            "name": "两个BT",
+            "type": 3,
+            "api": "csp_bttwo_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/bttwo_tu.js"
+        },
+        {
+            "name": "4kvm",
+            "type": 3,
+            "api": "csp_4kvm_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/4kvm_tu.js"
+        },
+        {
+            "name": "纽约影院",
+            "type": 3,
+            "api": "csp_nycvod_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/nycvod_tu.js"
+        },
+        {
+            "name": "假独播库",
+            "type": 3,
+            "api": "csp_duboku_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/duboku_tu.js"
+        },
+        {
+            "name": "瓜子web",
+            "type": 3,
+            "api": "csp_guazi_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/guazi_tu.js"
+        },
+        {
+            "name": "次元方舟",
+            "type": 3,
+            "api": "csp_cyfz_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/cyfz_tu.js"
+        },
+        {
+            "name": "喵物次元",
+            "type": 3,
+            "api": "csp_mwcy_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/mwcy_tu.js"
         }
     ]
 }
