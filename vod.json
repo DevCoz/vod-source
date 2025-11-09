@@ -1,12 +1,6 @@
 {
     "sites": [
         {
-            "name": "厂长资源",
-            "type": 3,
-            "api": "csp_czzy",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/czzy.js"
-        },
-        {
             "name": "哔滴影视",
             "type": 3,
             "api": "csp_bde4",
@@ -29,12 +23,6 @@
             "type": 3,
             "api": "csp_libvio",
             "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/libvio_tu.js"
-        },
-        {
-            "name": "低端影视",
-            "type": 3,
-            "api": "csp_ddys",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ddys.js"
         },
         {
             "name": "ギリギリ动漫",
@@ -203,6 +191,12 @@
             "type": 3,
             "api": "csp_mwcy_tu",
             "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/mwcy_tu.js"
-        }
+        },
+        {
+      "name": "奈飞工厂_兔",
+      "type": 3,
+      "api": "csp_netflixgc_tu",
+      "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/netflixgc_tu.js"
+    }
     ]
 }
