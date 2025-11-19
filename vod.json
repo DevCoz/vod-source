@@ -4,7 +4,7 @@
             "name": "厂长资源",
             "type": 3,
             "api": "csp_czzy",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/czzy.js"
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/refs/heads/main/js/czzy.js"
         },
         {
             "name": "fmovies",
@@ -79,12 +79,6 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/saohuo.js"
         },
         {
-            "name": "素白白影視",
-            "type": 3,
-            "api": "csp_subaibai",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/subaibai.js"
-        },
-        {
             "name": "NO視頻",
             "type": 3,
             "api": "csp_novipnoad",
@@ -109,12 +103,6 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/iyftv.js"
         },
         {
-            "name": "天天影視",
-            "type": 3,
-            "api": "csp_tiantian",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/tiantian.js"
-        },
-        {
             "name": "追光影视",
             "type": 3,
             "api": "csp_sgsd",
@@ -125,12 +113,6 @@
             "type": 3,
             "api": "csp_ystt",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/ystt.js"
-        },
-        {
-            "name": "hdmoli",
-            "type": 3,
-            "api": "csp_hdmoli",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/refs/heads/main/js/hdmoli.js"
         },
         {
             "name": "小蘋果",
