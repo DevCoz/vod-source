@@ -7,18 +7,48 @@
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/wogg.js"
         },
         {
+            "name": "多多影音",
+            "type": 3,
+            "api": "csp_yydsys",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/yydsys.js"
+        },
+        {
+            "name": "蜡笔盘",
+            "type": 3,
+            "api": "csp_labi",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/labipan.js"
+        },
+        {
+            "name": "木偶",
+            "type": 3,
+            "api": "csp_muou",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/muou.js"
+        },
+        {
+            "name": "小米",
+            "type": 3,
+            "api": "csp_mihdr",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/mihdr.js"
+        },
+        {
             "name": "云盘资源网",
             "type": 3,
             "api": "csp_yunpanres",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/yunpanres.js"
         },
         {
-            "name": "云盘吧",
+            "name": "雷鲸",
             "type": 3,
-            "api": "csp_yunpan8",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/yunpan8.js"
+            "api": "csp_leijing",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/leijing.js"
         },
         {
+            "name": "虎斑",
+            "type": 3,
+            "api": "csp_huban",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/huban.js" 
+        },
+         {
             "name": "SeedHub",
             "type": 3,
             "api": "csp_seedhub",
@@ -31,10 +61,22 @@
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/star2.js" 
         },
         {
-            "name": "TG搜索",
+            "name": "观影",
+            "type": 3,
+            "api": "csp_guanying",
+            "ext": "https://raw.githubusercontent.com/kingreevice/my_xptv/refs/heads/main/js/GYING_2025_2.js" 
+        },
+        {
+            "name": "TG搜",
             "type": 3,
             "api": "csp_tgs",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/tgs.js" 
+        },
+        {
+            "name": "天逸搜搜索",
+            "type": 3,
+            "api": "csp_tianyiso",
+            "ext": "https://gist.githubusercontent.com/occupy-pluto/874d9b180bcaff91e2dac06d38ed8474/raw/tianyiso.js" 
         },
         {
             "name": "小盘盘",
