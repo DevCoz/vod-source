@@ -85,7 +85,7 @@
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/novipnoad.js"
         },
         {
-            "name": "瓜子影子",
+            "name": "瓜子影视",
             "type": 3,
             "api": "csp_guazi",
             "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/gzys.js"
