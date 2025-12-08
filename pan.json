@@ -65,12 +65,6 @@
             "type": 3,
             "api": "csp_tgs",
             "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/tgs.js"
-        },
-        {
-            "name": "小盘盘",
-            "type": 3,
-            "api": "csp_xpanpan",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/xpanpan.js"
         }
     ]
 }
