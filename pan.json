@@ -1,0 +1,64 @@
+{
+    "sites": [
+        {
+            "name": "玩偶哥哥",
+            "type": 3,
+            "api": "csp_wogg",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/wogg.js"
+        },
+        {
+            "name": "pansou",
+            "type": 3,
+            "api": "csp_pansou",
+            "ext": "https://raw.githubusercontent.com/DevCoz/vod-source/refs/heads/main/js/pansou.js"
+        },
+        {
+            "name": "蜡笔盘",
+            "type": 3,
+            "api": "csp_labi",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/labipan.js"
+        },
+        {
+            "name": "木偶",
+            "type": 3,
+            "api": "csp_muou",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/muou.js"
+        },
+        {
+            "name": "小米",
+            "type": 3,
+            "api": "csp_mihdr",
+            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/mihdr.js"
+        },
+        {
+            "name": "雷鲸",
+            "type": 3,
+            "api": "csp_leijing",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/leijing.js"
+        },
+        {
+            "name": "观影",
+            "type": 3,
+            "api": "csp_gying_tu",
+            "ext": "https://raw.githubusercontent.com/xiaobaitulele/xptv/refs/heads/main/vod/gying_tu.js"
+        },
+        {
+            "name": "SeedHub",
+            "type": 3,
+            "api": "csp_seedhub",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/seedhub.js"
+        },
+        {
+            "name": "Star2",
+            "type": 3,
+            "api": "csp_star2",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/star2.js"
+        },
+        {
+            "name": "TG搜",
+            "type": 3,
+            "api": "csp_tgs",
+            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/tgs.js"
+        }
+    ]
+}
