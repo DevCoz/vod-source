@@ -41,18 +41,6 @@ async function getConfig() {
         ext: jsonify({
           id: 'search',
         }),
-      },
-      {
-        name: '推荐资源',
-        ext: jsonify({
-          search_text: '4K HDR 电影',
-        }),
-      },
-      {
-        name: '最新剧集',
-        ext: jsonify({
-          search_text: '最新 剧集',
-        }),
       }
     ]
   }
@@ -86,7 +74,7 @@ function createCardItem(item, index, searchText) {
   return {
     vod_id: uniqueId,
     vod_name: item.title || `资源 ${index + 1}`,
-    vod_pic: item.images && item.images.length > 0 ? item.images[0] : 'https://img3.doubanio.com/f/movie/ca52caae10c5f2b597e2cf4c8deac3e80bafe5f3/pics/movie/subjects/subject-default-large.svg',
+    vod_pic: item.images && item.images.length > 0 ? item.images[0] : 'https://s.tutu.pm/img/default.webp  ',
     vod_remarks: `${item.channel.replace('@', '')} | ${formattedDate}`,
     ext: jsonify({
       panSouResult: item,
