@@ -1,7 +1,6 @@
-// 自定义配置格式 {"pansou_urls":"https://pansou.xxx.com,https://pansou2.xxx.com","pansou_token":"","pansou_check_url":"http://192.168.50.50:7024","quark":true,"uc":true,"pikpak":true,"xunlei":true,"a123":true,"a189":true,"a139":true,"a115":true,"baidu":true,"ali":true,"pan_priority":["ali","quark","uc","pikpak","xunlei","a123","a189","a139","a115","baidu"]}
+// 自定义配置格式 {"pansou_urls":"https://pansou.xxx.com,https://pansou2.xxx.com","pansou_token":"","quark":true,"uc":true,"pikpak":true,"xunlei":true,"a123":true,"a189":true,"a139":true,"a115":true,"baidu":true,"ali":true,"pan_priority":["ali","quark","uc","pikpak","xunlei","a123","a189","a139","a115","baidu"]}
 // pansou_urls: 盘搜API地址，支持多个，用逗号(,)或换行分隔，例如 "https://pansou1.com,https://pansou2.com" 或 "https://pansou1.com\nhttps://pansou2.com"。系统会自动轮询检测，优先使用响应最快的节点。
 // pansou_token: 如果该实例启用了认证，请填入JWT Token，否则留空
-// pansou_check_url: 盘搜链接校验服务地址，例如 "http://192.168.50.50:7024"。如果为空或不填，则不进行链接校验。
 // quark,uc,pikpak,xunlei,a123,a189,a139,a115,baidu,ali: 布尔值，true表示启用该网盘，false表示禁用。结果中不会显示被禁用的网盘。
 // pan_priority: 数组，定义网盘的优先级顺序，越靠前优先级越高。例如 ["ali","quark","uc"] 表示阿里云盘优先级最高，其次是夸克，然后是UC。未在此数组中的网盘将排在最后，顺序按配置顺序。
 
@@ -18,7 +17,6 @@ if (PAN_URLS_RAW) {
     PAN_URLS = PAN_URLS_RAW.split(/[\n,]/).map(url => url.trim()).filter(url => url !== '');
 }
 const PAN_TOKEN = $config?.pansou_token || ""
-const PAN_CHECK_URL = $config?.pansou_check_url || "" // 校验服务地址
 
 // 公共请求头
 const BASE_HEADERS = {
@@ -259,7 +257,6 @@ async function getCards(ext) {
 
       if (data && data.code === 0 && data.data && data.data.merged_by_type) {
         // 处理按类型分组的数据结构
-        let rawItems = []; // 存储原始数据项，用于后续校验
         for (const key in data.data.merged_by_type) {
           // 找到对应的前端配置键名 (例如 'ali', 'quark' 等)，用于排序和显示
           // 这里需要反向查找，根据后端返回的 key (如 'aliyun') 找到前端配置的键 (如 'ali')
@@ -268,79 +265,19 @@ async function getCards(ext) {
 
           for (const row of data.data.merged_by_type[key] || []) {
             const source = row.source ? row.source.replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:') : "";
-            rawItems.push({
-              row: row,
-              panKey: panKey || key, // 网盘类型（用于排序）
-              pic: pic,
-              source: source
-            });
-          }
-        }
-
-        // --- 链接校验逻辑 ---
-        let validLinksSet = new Set(); // 存储有效的链接URL
-        const uniqueLinks = [...new Set(rawItems.map(item => item.row.url))]; // 获取唯一链接列表
-
-        if (PAN_CHECK_URL && uniqueLinks.length > 0) { // 如果配置了校验地址且有链接需要校验
-            try {
-                const checkUrl = `${PAN_CHECK_URL}/api/v1/links/check`;
-                const checkHeaders = { ...BASE_HEADERS }; // 校验API可能也需要认证，可根据需要添加
-                if (PAN_TOKEN) {
-                    checkHeaders['Authorization'] = `Bearer ${PAN_TOKEN}`;
-                }
-                const checkRequestBody = {
-                    links: uniqueLinks,
-                    selected_platforms: [
-                        "quark", "uc", "tianyi", "pan123", "pan115", "xunlei", "cmcc", "baidu"
-                    ],
-                };
-
-                console.log("开始校验链接...");
-                const checkResponse = await $fetch.post(checkUrl, checkRequestBody, { headers: checkHeaders, timeout: 30000 }); // 30秒超时
-
-                if (checkResponse.status >= 200 && checkResponse.status < 300) {
-                    const checkData = checkResponse.data;
-                    const VALID_STATUS = ["valid_links"];
-                    for (const status of VALID_STATUS) {
-                        (checkData[status] || []).forEach(link => validLinksSet.add(link));
-                    }
-                    console.log(`链接校验完成，有效链接数: ${validLinksSet.size}`);
-                } else {
-                    console.error("链接校验API请求失败:", checkResponse.status, checkResponse.data);
-                    // 如果校验失败，将所有链接视为有效
-                    uniqueLinks.forEach(l => validLinksSet.add(l));
-                }
-            } catch (e) {
-                console.error("链接校验过程出错:", e.message);
-                // 如果校验过程出错，将所有链接视为有效
-                uniqueLinks.forEach(l => validLinksSet.add(l));
-            }
-        } else {
-            // 如果没有配置校验地址，将所有链接视为有效
-            uniqueLinks.forEach(l => validLinksSet.add(l));
-        }
-
-        // 根据校验结果过滤 rawItems
-        const filteredItems = rawItems.filter(item => validLinksSet.has(item.row.url));
-
-        // --- 组装卡片 ---
-        for (const item of filteredItems) {
-            const row = item.row;
-            const pic = item.pic;
-            const source = item.source;
-
             cards.push({
               vod_id: row.url, // 使用 URL 作为唯一 ID
               vod_name: row.note || `资源`,
               vod_pic: pic,
-              vod_remarks: `${source || ""} | ${item.panKey || ""} | ${formatDateTime(row.datetime)}`,
+              vod_remarks: `${source || ""} | ${panKey || key} | ${formatDateTime(row.datetime)}`,
               datetime: new Date(row.datetime).getTime(), // 用于排序的时间戳
-              pan: item.panKey, // 网盘类型（用于排序）
+              pan: panKey || key, // 网盘类型（用于排序）
               ext: jsonify({
                 panSouResult: row, // 保存原始数据
                 searchText: searchText
               }),
-            });
+            })
+          }
         }
 
         // --- 排序逻辑 ---
