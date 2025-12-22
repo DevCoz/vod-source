@@ -184,7 +184,7 @@ async function getCards(ext) {
           data = JSON.parse(data)
         } catch (e) {
           $utils.toastError("API返回非JSON格式数据")
-          return jsonify({ list: [] }) // 返回字符串
+          return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
         }
       }
 
@@ -245,7 +245,7 @@ async function getCards(ext) {
       } else {
          $utils.toastError("API返回格式异常或无数据")
          console.error("API Response:", data);
-         return jsonify({ list: [] }) // 返回字符串
+         return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
       }
     } else {
       let errorMsg = `API请求失败，状态码: ${response.status}`
@@ -259,11 +259,11 @@ async function getCards(ext) {
         }
       }
       $utils.toastError(errorMsg)
-      return jsonify({ list: [] }) // 返回字符串
+      return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
     }
   } catch (error) {
     $utils.toastError(`API请求失败: ${error.message || error}`)
-    return jsonify({ list: [] }) // 返回字符串
+    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
   }
 
   return jsonify({ // 返回字符串
