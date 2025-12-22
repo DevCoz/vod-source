@@ -24,22 +24,25 @@ const BASE_HEADERS = {
 }
 
 // 网盘类型映射 (用于发送给后端) - 从配置中读取启用状态
+// 前端配置键名 -> 启用状态, 后端标识键名
 const PAN_TYPES_MAP = {
   quark: { enabled: $config?.quark !== false, backend_key: "quark" }, // 默认启用
   uc: { enabled: $config?.uc !== false, backend_key: "uc" },
   pikpak: { enabled: $config?.pikpak !== false, backend_key: "pikpak" },
   xunlei: { enabled: $config?.xunlei !== false, backend_key: "xunlei" },
-  a123: { enabled: $config?.a123 !== false, backend_key: "123" }, // 注意：123网盘用 'a123' 键，后端用 '123'
-  a189: { enabled: $config?.a189 !== false, backend_key: "tianyi" }, // 注意：天翼云用 'a189' 键，后端用 'tianyi'
-  a139: { enabled: $config?.a139 !== false, backend_key: "mobile" }, // 注意：移动云用 'a139' 键，后端用 'mobile'
-  a115: { enabled: $config?.a115 !== false, backend_key: "115" }, // 注意：115网盘用 'a115' 键，后端用 '115'
+  a123: { enabled: $config?.a123 !== false, backend_key: "123" }, // 前端配置用 'a123'，后端用 '123'
+  a189: { enabled: $config?.a189 !== false, backend_key: "tianyi" }, // 前端配置用 'a189'，后端用 'tianyi'
+  a139: { enabled: $config?.a139 !== false, backend_key: "mobile" }, // 前端配置用 'a139'，后端用 'mobile'
+  a115: { enabled: $config?.a115 !== false, backend_key: "115" }, // 前端配置用 'a115'，后端用 '115'
   baidu: { enabled: $config?.baidu !== false, backend_key: "baidu" },
-  ali: { enabled: $config?.ali !== false, backend_key: "aliyun" } // 添加阿里云盘
+  ali: { enabled: $config?.ali !== false, backend_key: "ali" } // 前端配置用 'ali'，后端也用 'ali' (根据Node.js代码)
 };
 
-// 网盘图标映射
+// 网盘图标映射 (后端返回的类型标识 -> 图标URL)
+// 根据您提供的表格，阿里云盘的后端标识应为 "aliyun"，但根据Node.js代码，它使用 "ali"
+// 为保持与Node.js代码一致，我们假设后端返回 "ali"
 const PAN_PIC_MAP = {
-  ali: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
+  ali: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg", // 后端用 'ali'
   quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
   uc: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/uc.png",
   pikpak: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/pikpak.jpg",
@@ -255,9 +258,10 @@ async function getCards(ext) {
       if (data && data.code === 0 && data.data && data.data.merged_by_type) {
         // 处理按类型分组的数据结构
         for (const key in data.data.merged_by_type) {
-          // 找到对应的网盘键名 (例如 'ali', 'quark' 等)
+          // 找到对应的前端配置键名 (例如 'ali', 'quark' 等)，用于排序和显示
+          // 这里需要反向查找，根据后端返回的 key (如 'ali') 找到前端配置的键 (如 'ali')
           const panKey = Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k].backend_key === key);
-          const pic = PAN_PIC_MAP[key] || 'https://s.tutu.pm/img/default.webp  '; // 默认图
+          const pic = PAN_PIC_MAP[key] || 'https://s.tutu.pm/img/default.webp  '; // 使用后端返回的类型标识查找图标
 
           for (const row of data.data.merged_by_type[key] || []) {
             const source = row.source ? row.source.replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:') : "";
@@ -267,7 +271,7 @@ async function getCards(ext) {
               vod_pic: pic,
               vod_remarks: `${source || ""} | ${panKey || key} | ${formatDateTime(row.datetime)}`,
               datetime: new Date(row.datetime).getTime(), // 用于排序的时间戳
-              pan: panKey || key, // 网盘类型
+              pan: panKey || key, // 网盘类型（用于排序）
               ext: jsonify({
                 panSouResult: row, // 保存原始数据
                 searchText: searchText
@@ -289,7 +293,7 @@ async function getCards(ext) {
         }, {});
 
         cards.sort((a, b) => {
-          // 1. 云盘顺序
+          // 1. 云盘顺序 (使用前端配置的键名)
           const oa = orderMap[a.pan] ?? 999;
           const ob = orderMap[b.pan] ?? 999;
           if (oa !== ob) return oa - ob;
