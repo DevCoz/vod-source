@@ -156,6 +156,12 @@ async function getCards(ext) {
     searchText = ext.query
   }
 
+  // 如果搜索关键词为空或默认值，提示用户输入
+  if (!searchText || searchText === "热门资源") {
+      $utils.toastError("请输入关键词开始搜索")
+      return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
+  }
+
   // 构造过滤参数
   const filterParam = {
     include: QUALITY_KEYWORDS,           // 包含这些关键词的资源
