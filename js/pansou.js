@@ -1,11 +1,13 @@
-// 自定义配置格式 {"pansou_url":"https://pansou.dev168.cf","pansou_token":"","only":""}
-// pansou_url: 盘搜API地址
+// 自定义配置格式 {"pansou_url":"https://pansou.xxx.com","pansou_token":"","only":""}
+// pansou_url: 盘搜API地址，例如 "https://pansou.xxx.com" 或 "http://192.168.x.x:port"
 // pansou_token: 如果该实例启用了认证，请填入JWT Token，否则留空
 // only是过滤网盘用的，内容为域名的截取，如driver.uc.com，就可以填uc，用英文逗号,分割
+// XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
+
+const $config = argsify($config_str)
 const cheerio = createCheerio()
 const CryptoJS = createCryptoJS()
 
-let $config = argsify($config_str)
 const PAN_API_URL = $config?.pansou_url || ""
 const PAN_TOKEN = $config?.pansou_token || ""
 const ONLY_FILTER = $config?.only || ""
@@ -15,6 +17,45 @@ const BASE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
   'Content-Type': 'application/json',
 }
+
+// 网盘类型映射 (用于发送给后端)
+const PAN_TYPES_MAP = {
+  quark: "quark",
+  uc: "uc",
+  pikpak: "pikpak",
+  xunlei: "xunlei",
+  a123: "123", // 注意：123网盘用 'a123' 键，后端用 '123'
+  a189: "tianyi", // 注意：天翼云用 'a189' 键，后端用 'tianyi'
+  a139: "mobile", // 注意：移动云用 'a139' 键，后端用 'mobile'
+  a115: "115", // 注意：115网盘用 'a115' 键，后端用 '115'
+  baidu: "baidu"
+};
+
+// 网盘图标映射
+const PAN_PIC_MAP = {
+  ali: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
+  quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
+  uc: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/uc.png",
+  pikpak: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/pikpak.jpg",
+  xunlei: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/thunder.png",
+  '123': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/123.png",
+  tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png",
+  mobile: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/139.jpg",
+  '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
+  'baidu': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
+};
+
+// 高优先级画质关键词（用于排序和后端过滤）
+const QUALITY_KEYWORDS = [
+  // 优先级从高到低
+  'HDR', '杜比', 'DV',
+  'REMUX', 'HQ', "臻彩", '高码', '高画质',
+  '60FPS', '60帧', '高帧率', '60HZ',
+  "4K", "2160P"
+];
+
+// 完结关键词（用于排序）
+const COMPLETED_KEYWORDS = ["完结", "全集", "已完成", "全"];
 
 // 辅助函数
 function jsonify(obj) {
@@ -30,64 +71,84 @@ function argsify(str) {
   }
 }
 
-async function getConfig() {
-  const appConfig = {
-    ver: 1,
-    title: "盘搜CF｜PAN",
-    site: PAN_API_URL,
-    tabs: [
-      {
-        name: '搜索',
-        ext: jsonify({
-          id: 'search',
-        }),
-      }
-    ]
+// 计算画质分数
+function getQualityScore(name) {
+  const upper = name.toUpperCase();
+  let score = 0;
+  let cnt = 0;
+  for (let i = 0; i < QUALITY_KEYWORDS.length; i++) {
+    if (upper.includes(QUALITY_KEYWORDS[i].toUpperCase())) {
+      score += QUALITY_KEYWORDS.length - i;
+      cnt++;
+    }
   }
-  return jsonify(appConfig)
+  return score + cnt;
 }
 
-// 创建卡片项的辅助函数
-function createCardItem(item, index, searchText) {
-  // 生成唯一ID
-  const uniqueId = item.unique_id || `${item.channel}_${item.message_id}`
-  
-  // 格式化日期
-  let formattedDate = '未知时间'
+// 计算关键词数量
+function getCount(name, keywords) {
+  const upper = name.toUpperCase();
+  let c = 0;
+  for (const kw of keywords) {
+    if (upper.includes(kw.toUpperCase())) c++;
+  }
+  return c;
+}
+
+// 格式化日期为 MMDDYY
+function formatDateTime(datetimeStr) {
   try {
-    const date = new Date(item.datetime)
+    const date = new Date(datetimeStr);
     if (!isNaN(date.getTime())) {
-      formattedDate = date.toLocaleDateString('zh-CN')
+      // 格式化为 MMDDYY
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = String(date.getFullYear()).slice(-2); // 取年份后两位
+      return `${month}${day}${year}`;
     }
   } catch (e) {
     // 如果是时间戳
     try {
-      const timestamp = parseInt(item.datetime)
+      const timestamp = parseInt(datetimeStr);
       if (!isNaN(timestamp)) {
-        formattedDate = new Date(timestamp * 1000).toLocaleDateString('zh-CN')
+        const date = new Date(timestamp * 1000);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const year = String(date.getFullYear()).slice(-2);
+        return `${month}${day}${year}`;
       }
     } catch (e2) {
       // 保持默认值
     }
   }
-
-  return {
-    vod_id: uniqueId,
-    vod_name: item.title || `资源 ${index + 1}`,
-    vod_pic: item.images && item.images.length > 0 ? item.images[0] : 'https://s.tutu.pm/img/default.webp  ',
-    vod_remarks: `${item.channel.replace('@', '')} | ${formattedDate}`,
-    ext: jsonify({
-      panSouResult: item,
-      searchText: searchText
-    }),
-  }
+  return '未知';
 }
 
+// getConfig 函数，返回字符串格式的配置
+async function getConfig() {
+  const appConfig = {
+    ver: 1,
+    title: "盘搜CF｜PAN",
+    site: PAN_API_URL, // 如果需要，可以使用配置的 URL
+    tabs: [
+      {
+        name: '搜索',
+        ext: jsonify({ // ext 本身也是字符串
+          id: 'search',
+        }),
+      }
+      // 已移除推荐资源和最新剧集
+    ]
+  }
+  return jsonify(appConfig) // 返回字符串
+}
+
+// getCards 函数，接收字符串 ext，返回字符串结果
 async function getCards(ext) {
-  ext = argsify(ext)
+  ext = argsify(ext) // 将输入的字符串 ext 反序列化为对象
   let cards = []
   let searchText = "热门资源"
-  
+
   // 从tab配置或搜索参数获取关键词
   if (ext.search_text) {
     searchText = ext.search_text
@@ -97,17 +158,30 @@ async function getCards(ext) {
     searchText = ext.query
   }
 
+  // 构造过滤参数
+  const filterParam = {
+    include: QUALITY_KEYWORDS,           // 包含这些关键词的资源
+    exclude: ["枪版", "预告", "彩蛋"],   // 排除这些关键词的资源
+  };
+
   const searchUrl = `${PAN_API_URL}/api/search`
   const requestBody = {
     kw: searchText,
-    res: "results", // 获取详细结果
-    // 可选：设置过滤器，排除失效资源
-    filter: {
-      exclude: ["失效", "错误", "过期", "无资源"]
-    }
+    filter: filterParam,                 // 将过滤交给后端
   }
 
-  // 构建请求头，添加认证信息（如果配置了token）
+  // 如果定义了 ONLY_FILTER，则只请求特定网盘类型
+  if (ONLY_FILTER) {
+      const requestedKeys = ONLY_FILTER.split(',').map(k => k.trim()).filter(k => k !== '');
+      const requestedCloudTypes = requestedKeys.map(key => PAN_TYPES_MAP[key]).filter(Boolean);
+      if (requestedCloudTypes.length > 0) {
+          requestBody.cloud_types = requestedCloudTypes;
+      }
+  } else {
+      // 如果没有指定 ONLY_FILTER，则请求所有支持的类型
+      requestBody.cloud_types = Object.values(PAN_TYPES_MAP);
+  }
+
   const headers = { ...BASE_HEADERS }
   if (PAN_TOKEN) {
     headers['Authorization'] = `Bearer ${PAN_TOKEN}`
@@ -115,34 +189,76 @@ async function getCards(ext) {
 
   try {
     const response = await $fetch.post(searchUrl, requestBody, { headers: headers })
-    
+
     if (response.status >= 200 && response.status < 300) {
-      // 尝试解析响应数据
       let data = response.data
-      
-      // 检查数据格式
       if (typeof data === 'string') {
         try {
           data = JSON.parse(data)
         } catch (e) {
           $utils.toastError("API返回非JSON格式数据")
-          return jsonify({ list: [] })
+          return jsonify({ list: [] }) // 返回字符串
         }
       }
-      
-      // 检查是否有results字段
-      if (data && data.results && Array.isArray(data.results)) {
-        // 处理直接的results数组
-        data.results.forEach((item, index) => {
-          cards.push(createCardItem(item, index, searchText))
-        })
-      } else if (data && data.data && data.data.results && Array.isArray(data.data.results)) {
-        // 处理可能的嵌套格式
-        data.data.results.forEach((item, index) => {
-          cards.push(createCardItem(item, index, searchText))
-        })
+
+      if (data && data.code === 0 && data.data && data.data.merged_by_type) {
+        // 处理按类型分组的数据结构
+        for (const key in data.data.merged_by_type) {
+          // 找到对应的网盘键名 (例如 'ali', 'quark' 等)
+          const panKey = Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === key);
+          const pic = PAN_PIC_MAP[key] || 'https://s.tutu.pm/img/default.webp  '; // 默认图
+
+          for (const row of data.data.merged_by_type[key] || []) {
+            const source = row.source ? row.source.replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:') : "";
+            cards.push({
+              vod_id: row.url, // 使用 URL 作为唯一 ID
+              vod_name: row.note || `资源`,
+              vod_pic: pic,
+              vod_remarks: `${source || ""} | ${panKey || key} | ${formatDateTime(row.datetime)}`,
+              datetime: new Date(row.datetime).getTime(), // 用于排序的时间戳
+              pan: panKey || key, // 网盘类型
+              ext: jsonify({
+                panSouResult: row, // 保存原始数据
+                searchText: searchText
+              }),
+            })
+          }
+        }
+
+        // --- 排序逻辑 ---
+        // 获取网盘类型的排序顺序（假设按配置顺序或默认顺序）
+        const allDriveKeys = Object.keys(PAN_TYPES_MAP); // 这里简化为固定顺序
+        const orderMap = allDriveKeys.reduce((map, key, idx) => {
+          map[key] = idx;
+          return map;
+        }, {});
+
+        cards.sort((a, b) => {
+          // 1. 云盘顺序
+          const oa = orderMap[a.pan] ?? 999;
+          const ob = orderMap[b.pan] ?? 999;
+          if (oa !== ob) return oa - ob;
+          // 2. 画质分数
+          const qa = getQualityScore(a.vod_name);
+          const qb = getQualityScore(b.vod_name);
+          if (qa !== qb) return qb - qa;
+          // 3. 完结关键词数量
+          const ca = getCount(a.vod_name, COMPLETED_KEYWORDS);
+          const cb = getCount(b.vod_name, COMPLETED_KEYWORDS);
+          if (ca !== cb) return cb - ca;
+          // 4. 画质关键词数量（次要）
+          const qa2 = getCount(a.vod_name, QUALITY_KEYWORDS);
+          const qb2 = getCount(b.vod_name, QUALITY_KEYWORDS);
+          if (qa2 !== qb2) return qb2 - qa2;
+          // 5. 时间倒序（最新在前面）
+          if (b.datetime !== a.datetime) return b.datetime - a.datetime;
+          return 0; // 稳定排序
+        });
+
       } else {
-        $utils.toastError("API返回格式异常，缺少results字段")
+         $utils.toastError("API返回格式异常或无数据")
+         console.error("API Response:", data);
+         return jsonify({ list: [] }) // 返回字符串
       }
     } else {
       let errorMsg = `API请求失败，状态码: ${response.status}`
@@ -156,12 +272,14 @@ async function getCards(ext) {
         }
       }
       $utils.toastError(errorMsg)
+      return jsonify({ list: [] }) // 返回字符串
     }
   } catch (error) {
     $utils.toastError(`API请求失败: ${error.message || error}`)
+    return jsonify({ list: [] }) // 返回字符串
   }
 
-  return jsonify({
+  return jsonify({ // 返回字符串
     list: cards,
     page: ext.page || 1,
     pagecount: Math.ceil(cards.length / 20) || 1,
@@ -169,89 +287,56 @@ async function getCards(ext) {
   })
 }
 
+// getTracks 函数，接收字符串 ext，返回字符串结果
 async function getTracks(ext) {
-  ext = argsify(ext)
+  ext = argsify(ext) // 将输入的字符串 ext 反序列化为对象
   let tracks = []
-  
+
   const panSouResult = ext.panSouResult
-  if (!panSouResult || !Array.isArray(panSouResult.links)) {
+  if (!panSouResult) {
     $utils.toastError("获取网盘链接失败，数据格式错误")
-    return jsonify({ list: [] })
+    return jsonify({ list: [] }) // 返回字符串
   }
 
-  const links = panSouResult.links
-  
-  // 定义排序顺序：夸克 > 阿里云 > UC > 天翼云 > 115
-  const order = ["quark.cn", "alipan.com", "uc.cn", "189.cn", "115.com"]
-  
-  // 解析only过滤条件
-  const keys = ONLY_FILTER ? ONLY_FILTER.toLowerCase().split(",").filter(Boolean) : []
+  // 盘搜后端通常会返回单个链接，而不是数组，我们构造一个模拟结构
+  const linkUrl = panSouResult.url || '';
+  const linkPassword = panSouResult.password || '';
+  const note = panSouResult.note || `链接`;
 
-  // 处理每个链接
-  links.forEach((linkObj, index) => {
-    let linkUrl = linkObj.url || ''
-    let linkPassword = linkObj.password || ''
-    let note = linkObj.work_title || panSouResult.title || `链接 ${(index + 1).toString()}`
-
-    // 应用only过滤规则
-    if (keys.length && linkUrl) {
-      const match = linkUrl.match(/^(https?:\/\/)?([^\/:]+)/i)
-      if (match) {
-        const domain = match[2].toLowerCase()
-        const hit = keys.some(k => domain.includes(k))
-        if (!hit) {
-          return
-        }
-      } else {
-        return
+  // 应用only过滤规则
+  if (ONLY_FILTER && linkUrl) {
+    const keys = ONLY_FILTER.toLowerCase().split(",").filter(Boolean);
+    const match = linkUrl.match(/^(https?:\/\/)?([^\/:]+)/i)
+    if (match) {
+      const domain = match[2].toLowerCase()
+      const hit = keys.some(k => domain.includes(k))
+      if (!hit) {
+        $utils.toastError("当前链接不符合only过滤条件")
+        return jsonify({ list: [] }) // 返回字符串
       }
+    } else {
+       $utils.toastError("无法解析链接域名")
+       return jsonify({ list: [] }) // 返回字符串
     }
+  }
 
-    // 生成标题
-    let title = note
-    if (linkPassword) {
-      title += ` (密码: ${linkPassword})`
-    }
-    title += ` (${(index + 1).toString()})`
+  // 生成标题
+  let title = note;
+  if (linkPassword) {
+    title += ` (密码: ${linkPassword})`
+  }
 
-    tracks.push({
-      name: title,
-      pan: linkUrl,
-      pwd: linkPassword,
-      ext: jsonify({
-        url: linkUrl,
-        password: linkPassword
-      })
+  tracks.push({
+    name: title,
+    pan: linkUrl,
+    pwd: linkPassword,
+    ext: jsonify({
+      url: linkUrl,
+      password: linkPassword
     })
   })
 
-  // 按网盘类型排序
-  tracks = tracks.sort((a, b) => {
-    const getSortIndex = (url) => {
-      const match = url.match(/^https?:\/\/([^\/?#]+)/i)
-      if (match) {
-        const host = match[1].toLowerCase()
-        for (let i = 0; i < order.length; i++) {
-          if (host.includes(order[i])) return i
-        }
-      }
-      return 999 // 未匹配的排最后
-    }
-
-    return getSortIndex(a.pan) - getSortIndex(b.pan)
-  })
-
-  // 限制每个网盘类型的数量（避免重复）
-  const hostCount = {}
-  tracks = tracks.filter(item => {
-    const match = item.pan.match(/^https?:\/\/([^\/?#]+)/i)
-    const host = match ? match[1].toLowerCase() : "unknown"
-    
-    hostCount[host] = (hostCount[host] || 0) + 1
-    return hostCount[host] <= 5 // 每个网盘最多5个链接
-  })
-  
-  return jsonify({
+  return jsonify({ // 返回字符串
     list: [
       {
         title: '网盘链接',
@@ -261,13 +346,16 @@ async function getTracks(ext) {
   })
 }
 
+// getPlayinfo 函数，接收字符串 ext，返回字符串结果
 async function getPlayinfo(ext) {
-  return jsonify({ 
+  ext = argsify(ext) // 将输入的字符串 ext 反序列化为对象
+  return jsonify({ // 返回字符串
     urls: [],
-    headers: [BASE_HEADERS]
+    headers: [BASE_HEADERS] // Headers 通常以数组形式返回，包含对象
   })
 }
 
+// search 函数，接收字符串 ext，返回字符串结果 (功能上与 getCards 相同)
 async function search(ext) {
-  return await getCards(ext)
+  return await getCards(ext) // getCards 已经返回字符串，直接返回
 }
