@@ -35,14 +35,13 @@ const PAN_TYPES_MAP = {
   a139: { enabled: $config?.a139 !== false, backend_key: "mobile" }, // 前端配置用 'a139'，后端用 'mobile'
   a115: { enabled: $config?.a115 !== false, backend_key: "115" }, // 前端配置用 'a115'，后端用 '115'
   baidu: { enabled: $config?.baidu !== false, backend_key: "baidu" },
-  ali: { enabled: $config?.ali !== false, backend_key: "ali" } // 前端配置用 'ali'，后端也用 'ali' (根据Node.js代码)
+  ali: { enabled: $config?.ali !== false, backend_key: "aliyun" } // 前端配置用 'ali'，后端用 'aliyun' (根据官方列表)
 };
 
 // 网盘图标映射 (后端返回的类型标识 -> 图标URL)
-// 根据您提供的表格，阿里云盘的后端标识应为 "aliyun"，但根据Node.js代码，它使用 "ali"
-// 为保持与Node.js代码一致，我们假设后端返回 "ali"
+// 根据您提供的官方列表，阿里云盘的后端标识应为 "aliyun"
 const PAN_PIC_MAP = {
-  ali: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg", // 后端用 'ali'
+  aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg", // 后端用 'aliyun'
   quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
   uc: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/uc.png",
   pikpak: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/pikpak.jpg",
@@ -259,7 +258,7 @@ async function getCards(ext) {
         // 处理按类型分组的数据结构
         for (const key in data.data.merged_by_type) {
           // 找到对应的前端配置键名 (例如 'ali', 'quark' 等)，用于排序和显示
-          // 这里需要反向查找，根据后端返回的 key (如 'ali') 找到前端配置的键 (如 'ali')
+          // 这里需要反向查找，根据后端返回的 key (如 'aliyun') 找到前端配置的键 (如 'ali')
           const panKey = Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k].backend_key === key);
           const pic = PAN_PIC_MAP[key] || 'https://s.tutu.pm/img/default.webp  '; // 使用后端返回的类型标识查找图标
 
