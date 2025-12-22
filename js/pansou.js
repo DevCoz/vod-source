@@ -1,7 +1,6 @@
-// 自定义配置格式 {"pansou_url":"https://pansou.xxx.com","pansou_token":"","only":""}
+// 自定义配置格式 {"pansou_url":"https://pansou.xxx.com","pansou_token":""}
 // pansou_url: 盘搜API地址，例如 "https://pansou.xxx.com" 或 "http://192.168.x.x:port"
 // pansou_token: 如果该实例启用了认证，请填入JWT Token，否则留空
-// only是过滤网盘用的，内容为域名的截取，如driver.uc.com，就可以填uc，用英文逗号,分割
 // XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
 
 const $config = argsify($config_str)
@@ -10,7 +9,6 @@ const CryptoJS = createCryptoJS()
 
 const PAN_API_URL = $config?.pansou_url || ""
 const PAN_TOKEN = $config?.pansou_token || ""
-const ONLY_FILTER = $config?.only || ""
 
 // 公共请求头
 const BASE_HEADERS = {
@@ -168,18 +166,7 @@ async function getCards(ext) {
   const requestBody = {
     kw: searchText,
     filter: filterParam,                 // 将过滤交给后端
-  }
-
-  // 如果定义了 ONLY_FILTER，则只请求特定网盘类型
-  if (ONLY_FILTER) {
-      const requestedKeys = ONLY_FILTER.split(',').map(k => k.trim()).filter(k => k !== '');
-      const requestedCloudTypes = requestedKeys.map(key => PAN_TYPES_MAP[key]).filter(Boolean);
-      if (requestedCloudTypes.length > 0) {
-          requestBody.cloud_types = requestedCloudTypes;
-      }
-  } else {
-      // 如果没有指定 ONLY_FILTER，则请求所有支持的类型
-      requestBody.cloud_types = Object.values(PAN_TYPES_MAP);
+    cloud_types: Object.values(PAN_TYPES_MAP), // 请求所有支持的类型
   }
 
   const headers = { ...BASE_HEADERS }
@@ -302,23 +289,6 @@ async function getTracks(ext) {
   const linkUrl = panSouResult.url || '';
   const linkPassword = panSouResult.password || '';
   const note = panSouResult.note || `链接`;
-
-  // 应用only过滤规则
-  if (ONLY_FILTER && linkUrl) {
-    const keys = ONLY_FILTER.toLowerCase().split(",").filter(Boolean);
-    const match = linkUrl.match(/^(https?:\/\/)?([^\/:]+)/i)
-    if (match) {
-      const domain = match[2].toLowerCase()
-      const hit = keys.some(k => domain.includes(k))
-      if (!hit) {
-        $utils.toastError("当前链接不符合only过滤条件")
-        return jsonify({ list: [] }) // 返回字符串
-      }
-    } else {
-       $utils.toastError("无法解析链接域名")
-       return jsonify({ list: [] }) // 返回字符串
-    }
-  }
 
   // 生成标题
   let title = note;
