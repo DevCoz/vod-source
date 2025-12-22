@@ -19,14 +19,15 @@ const BASE_HEADERS = {
 // 网盘类型映射 (用于发送给后端)
 const PAN_TYPES_MAP = {
   quark: "quark",
+  ali: "aliyun",
   uc: "uc",
-  pikpak: "pikpak",
-  xunlei: "xunlei",
-  a123: "123", // 注意：123网盘用 'a123' 键，后端用 '123'
+  //pikpak: "pikpak",
+  //xunlei: "xunlei",
+  //a123: "123", // 注意：123网盘用 'a123' 键，后端用 '123'
   a189: "tianyi", // 注意：天翼云用 'a189' 键，后端用 'tianyi'
-  a139: "mobile", // 注意：移动云用 'a139' 键，后端用 'mobile'
+  //a139: "mobile", // 注意：移动云用 'a139' 键，后端用 'mobile'
   a115: "115", // 注意：115网盘用 'a115' 键，后端用 '115'
-  baidu: "baidu"
+  //baidu: "baidu"
 };
 
 // 网盘图标映射
