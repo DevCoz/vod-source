@@ -1,8 +1,10 @@
-// 自定义配置格式 {"pansou_urls":"https://pansou.xxx.com,https://pansou2.xxx.com","pansou_token":"","quark":true,"uc":true,"pikpak":true,"xunlei":true,"a123":true,"a189":true,"a139":true,"a115":true,"baidu":true,"ali":true,"pan_priority":["ali","quark","uc","pikpak","xunlei","a123","a189","a139","a115","baidu"]}
+// 自定义配置格式 {"pansou_urls":"https://pansou.xxx.com,https://pansou2.xxx.com","pansou_token":"","quark":true,"uc":true,"pikpak":true,"xunlei":true,"a123":true,"a189":true,"a139":true,"a115":true,"baidu":true,"ali":true,"pan_priority":["ali","quark","uc"],"pancheck_enabled":true,"pancheck_api_url":"http://192.168.1.100:8080"}
 // pansou_urls: 盘搜API地址，支持多个，用逗号(,)或换行分隔，例如 "https://pansou1.com,https://pansou2.com" 或 "https://pansou1.com\nhttps://pansou2.com"。系统会自动轮询检测，优先使用响应最快的节点。
 // pansou_token: 如果该实例启用了认证，请填入JWT Token，否则留空
 // quark,uc,pikpak,xunlei,a123,a189,a139,a115,baidu,ali: 布尔值，true表示启用该网盘，false表示禁用。结果中不会显示被禁用的网盘。
 // pan_priority: 数组，定义网盘的优先级顺序，越靠前优先级越高。例如 ["ali","quark","uc"] 表示阿里云盘优先级最高，其次是夸克，然后是UC。未在此数组中的网盘将排在最后，顺序按配置顺序。
+// pancheck_enabled: 布尔值，true表示启用PanCheck链接检测，false表示禁用。
+// pancheck_api_url: PanCheck服务的API地址，例如 "http://192.168.1.100:8080"。
 
 // XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
 
@@ -17,10 +19,17 @@ if (PAN_URLS_RAW) {
     PAN_URLS = PAN_URLS_RAW.split(/[\n,]/).map(url => url.trim()).filter(url => url !== '');
 }
 const PAN_TOKEN = $config?.pansou_token || ""
+const PANCHECK_ENABLED = $config?.pancheck_enabled === true
+const PANCHECK_API_URL = $config?.pancheck_api_url || ""
 
 // 公共请求头
 const BASE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  'Content-Type': 'application/json',
+}
+
+// PanCheck请求头
+const PANCHECK_HEADERS = {
   'Content-Type': 'application/json',
 }
 
@@ -52,6 +61,23 @@ const PAN_PIC_MAP = {
   mobile: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/139.jpg",
   '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
   'baidu': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
+};
+
+// PanCheck 平台映射 (后端返回的类型标识 -> PanCheck API 中的平台标识)
+// 根据 PanCheck 文档
+const PANCHECK_PLATFORM_MAP = {
+  aliyun: "aliyun",
+  quark: "quark",
+  uc: "uc",
+  baidu: "baidu",
+  tianyi: "tianyi", // 对应 a189
+  '123': "pan123", // 对应 a123
+  '115': "pan115", // 对应 a115
+  xunlei: "xunlei",
+  mobile: "cmcc", // 对应 a139 (中国移动云盘)
+  pikpak: "pikpak",
+  // magnet: "magnet", // PanCheck 似乎不直接支持 magnet
+  // ed2k: "ed2k",     // PanCheck 似乎不直接支持 ed2k
 };
 
 // 高优先级画质关键词（用于排序和后端过滤）
@@ -167,6 +193,52 @@ async function getAvailableAPI() {
     return null; // 如果所有地址都失败
 }
 
+// 检测链接有效性
+async function checkLinksValidity(links) {
+    if (!PANCHECK_ENABLED || !PANCHECK_API_URL || !Array.isArray(links) || links.length === 0) {
+        // 如果未启用检测或没有链接，返回所有链接为有效
+        return new Set(links);
+    }
+
+    const checkUrl = `${PANCHECK_API_URL}/api/v1/links/check`;
+    const requestBody = {
+        links: links,
+        // 如果需要指定平台，可以构建 selectedPlatforms 数组
+        // selectedPlatforms: [...new Set(links.map(link => {
+        //     // 这里可以根据链接域名简单判断平台，或者需要传入一个映射
+        //     // 为了简化，我们传入所有可能的平台，或者不传让PanCheck自动判断
+        //     // return PANCHECK_PLATFORM_MAP[...]; // 需要更复杂的逻辑来匹配链接和平台
+        //     // 为避免复杂性，这里不指定平台，让PanCheck自动判断
+        // }))]
+        // 不指定平台，让PanCheck自动判断
+    };
+
+    try {
+        const response = await $fetch.post(checkUrl, requestBody, { headers: PANCHECK_HEADERS, timeout: 30000 }); // 30秒超时
+
+        if (response.status >= 200 && response.status < 300) {
+            const data = response.data;
+            if (data && Array.isArray(data.valid_links)) {
+                console.log(`PanCheck 检测完成，有效链接数量: ${data.valid_links.length}`);
+                return new Set(data.valid_links);
+            } else {
+                console.error("PanCheck 响应格式异常:", data);
+                // 如果响应格式不对，也返回所有链接为有效，避免阻塞
+                return new Set(links);
+            }
+        } else {
+            console.error(`PanCheck API请求失败，状态码: ${response.status}`, response.data);
+            // 如果请求失败，也返回所有链接为有效，避免阻塞
+            return new Set(links);
+        }
+    } catch (error) {
+        console.error(`PanCheck API请求异常: ${error.message || error}`);
+        // 如果请求出错，也返回所有链接为有效，避免阻塞
+        return new Set(links);
+    }
+}
+
+
 // getConfig 函数，返回字符串格式的配置
 async function getConfig() {
   const appConfig = {
@@ -210,7 +282,7 @@ async function getCards(ext) {
   // 获取一个可用的API地址
   const apiUrl = await getAvailableAPI();
   if (!apiUrl) {
-      $utils.toastError("所有配置的API地址都不可用");
+      $utils.toastError("所有配置的盘搜API地址都不可用");
       return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }); // 返回标准空结果字符串
   }
 
@@ -250,34 +322,62 @@ async function getCards(ext) {
         try {
           data = JSON.parse(data)
         } catch (e) {
-          $utils.toastError("API返回非JSON格式数据")
+          $utils.toastError("盘搜API返回非JSON格式数据")
           return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
         }
       }
 
       if (data && data.code === 0 && data.data && data.data.merged_by_type) {
-        // 处理按类型分组的数据结构
+        // 收集所有原始项目和链接
+        const rawItems = [];
+        const uniqueLinks = new Set(); // 用于去重链接
+
         for (const key in data.data.merged_by_type) {
-          // 找到对应的前端配置键名 (例如 'ali', 'quark' 等)，用于排序和显示
-          // 这里需要反向查找，根据后端返回的 key (如 'aliyun') 找到前端配置的键 (如 'ali')
           const panKey = Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k].backend_key === key);
           const pic = PAN_PIC_MAP[key] || 'https://s.tutu.pm/img/default.webp  '; // 使用后端返回的类型标识查找图标
 
           for (const row of data.data.merged_by_type[key] || []) {
+            const item = {
+              row: row,
+              panKey: panKey,
+              pic: pic,
+            };
+            rawItems.push(item);
+            uniqueLinks.add(row.url);
+          }
+        }
+
+        // 如果有启用链接检测
+        let validLinksSet = new Set();
+        if (PANCHECK_ENABLED) {
+            console.log("开始进行PanCheck链接有效性检测...");
+            validLinksSet = await checkLinksValidity(Array.from(uniqueLinks));
+            console.log("PanCheck链接有效性检测完成。");
+        } else {
+            // 如果未启用检测，将所有链接视为有效
+            validLinksSet = uniqueLinks;
+        }
+
+        // 过滤出有效链接对应的项目
+        const filteredItems = rawItems.filter(item => validLinksSet.has(item.row.url));
+
+        // --- 组装卡片 ---
+        for (const item of filteredItems) {
+            const row = item.row;
+            const pic = item.pic;
             const source = row.source ? row.source.replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:') : "";
             cards.push({
               vod_id: row.url, // 使用 URL 作为唯一 ID
               vod_name: row.note || `资源`,
               vod_pic: pic,
-              vod_remarks: `${source || ""} | ${panKey || key} | ${formatDateTime(row.datetime)}`,
+              vod_remarks: `${source || ""} | ${item.panKey || ""} | ${formatDateTime(row.datetime)}`,
               datetime: new Date(row.datetime).getTime(), // 用于排序的时间戳
-              pan: panKey || key, // 网盘类型（用于排序）
+              pan: item.panKey || "", // 网盘类型（用于排序）
               ext: jsonify({
                 panSouResult: row, // 保存原始数据
                 searchText: searchText
               }),
-            })
-          }
+            });
         }
 
         // --- 排序逻辑 ---
@@ -326,12 +426,12 @@ async function getCards(ext) {
         });
 
       } else {
-         $utils.toastError("API返回格式异常或无数据")
-         console.error("API Response:", data);
+         $utils.toastError("盘搜API返回格式异常或无数据")
+         console.error("盘搜API Response:", data);
          return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
       }
     } else {
-      let errorMsg = `API请求失败，状态码: ${response.status}`
+      let errorMsg = `盘搜API请求失败，状态码: ${response.status}`
       if (response.data) {
         try {
           const errorData = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
@@ -345,7 +445,7 @@ async function getCards(ext) {
       return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
     }
   } catch (error) {
-    $utils.toastError(`API请求失败: ${error.message || error}`)
+    $utils.toastError(`盘搜API请求失败: ${error.message || error}`)
     return jsonify({ list: [], page: 1, pagecount: 1, total: 0 }) // 返回标准空结果字符串
   }
 
