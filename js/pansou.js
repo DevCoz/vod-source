@@ -1,7 +1,8 @@
-// 自定义配置格式 {"pansou_urls":"https://pansou.xxx.com,https://pansou2.xxx.com","pansou_token":"","quark":true,"uc":true,"pikpak":true,"xunlei":true,"a123":true,"a189":true,"a139":true,"a115":true,"baidu":true,"ali":true}
+// 自定义配置格式 {"pansou_urls":"https://pansou.xxx.com,https://pansou2.xxx.com","pansou_token":"","quark":true,"uc":true,"pikpak":true,"xunlei":true,"a123":true,"a189":true,"a139":true,"a115":true,"baidu":true,"ali":true,"pan_priority":["ali","quark","uc","pikpak","xunlei","a123","a189","a139","a115","baidu"]}
 // pansou_urls: 盘搜API地址，支持多个，用逗号(,)或换行分隔，例如 "https://pansou1.com,https://pansou2.com" 或 "https://pansou1.com\nhttps://pansou2.com"。系统会自动轮询检测，优先使用响应最快的节点。
 // pansou_token: 如果该实例启用了认证，请填入JWT Token，否则留空
 // quark,uc,pikpak,xunlei,a123,a189,a139,a115,baidu,ali: 布尔值，true表示启用该网盘，false表示禁用。结果中不会显示被禁用的网盘。
+// pan_priority: 数组，定义网盘的优先级顺序，越靠前优先级越高。例如 ["ali","quark","uc"] 表示阿里云盘优先级最高，其次是夸克，然后是UC。未在此数组中的网盘将排在最后，顺序按配置顺序。
 
 // XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
 
@@ -280,20 +281,31 @@ async function getCards(ext) {
         }
 
         // --- 排序逻辑 ---
-        // 获取网盘类型的排序顺序（按配置顺序）
-        const allDriveKeys = Object.keys(PAN_TYPES_MAP); // 按配置顺序
-        const orderMap = allDriveKeys.reduce((map, key, idx) => {
-          if (PAN_TYPES_MAP[key].enabled) { // 只为启用的网盘分配顺序
-              map[key] = idx;
-          } else {
-              map[key] = 999; // 禁用的网盘排最后
-          }
-          return map;
-        }, {});
+        // 获取用户自定义的网盘优先级顺序
+        const userPriority = $config?.pan_priority || [];
+        // 获取所有启用的网盘键名
+        const allEnabledDriveKeys = Object.keys(PAN_TYPES_MAP).filter(key => PAN_TYPES_MAP[key].enabled);
+
+        // 创建排序映射
+        const orderMap = {};
+        // 先处理用户自定义优先级列表中的网盘
+        userPriority.forEach((key, index) => {
+            if (PAN_TYPES_MAP[key] && PAN_TYPES_MAP[key].enabled) { // 确保键存在且已启用
+                orderMap[key] = index;
+            }
+        });
+
+        // 为不在用户自定义列表中的启用网盘分配顺序（放在后面）
+        let fallbackIndex = userPriority.length;
+        allEnabledDriveKeys.forEach(key => {
+            if (orderMap[key] === undefined) { // 如果该键不在用户自定义列表中
+                orderMap[key] = fallbackIndex++;
+            }
+        });
 
         cards.sort((a, b) => {
-          // 1. 云盘顺序 (使用前端配置的键名)
-          const oa = orderMap[a.pan] ?? 999;
+          // 1. 云盘顺序 (使用前端配置的键名和用户定义的优先级)
+          const oa = orderMap[a.pan] ?? 999; // 如果找不到，给一个很大的序号，排到最后
           const ob = orderMap[b.pan] ?? 999;
           if (oa !== ob) return oa - ob;
           // 2. 画质分数
