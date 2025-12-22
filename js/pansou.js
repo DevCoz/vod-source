@@ -193,49 +193,134 @@ async function getAvailableAPI() {
     return null; // 如果所有地址都失败
 }
 
-// 检测链接有效性
+// 检测链接有效性（优化版：支持详细状态查询）
 async function checkLinksValidity(links) {
     if (!PANCHECK_ENABLED || !PANCHECK_API_URL || !Array.isArray(links) || links.length === 0) {
         // 如果未启用检测或没有链接，返回所有链接为有效
-        return new Set(links);
+        console.log("PanCheck 未启用或无链接，返回所有链接为有效");
+        return { valid: new Set(links), invalid: new Set() };
     }
 
     const checkUrl = `${PANCHECK_API_URL}/api/v1/links/check`;
+    // 尝试获取所有支持的 PanCheck 平台，用于 selectedPlatforms
+    const allPanCheckPlatforms = Object.values(PANCHECK_PLATFORM_MAP);
     const requestBody = {
         links: links,
-        // 如果需要指定平台，可以构建 selectedPlatforms 数组
-        // selectedPlatforms: [...new Set(links.map(link => {
-        //     // 这里可以根据链接域名简单判断平台，或者需要传入一个映射
-        //     // 为了简化，我们传入所有可能的平台，或者不传让PanCheck自动判断
-        //     // return PANCHECK_PLATFORM_MAP[...]; // 需要更复杂的逻辑来匹配链接和平台
-        //     // 为避免复杂性，这里不指定平台，让PanCheck自动判断
-        // }))]
-        // 不指定平台，让PanCheck自动判断
+        selectedPlatforms: allPanCheckPlatforms // 检测所有支持的平台
     };
 
     try {
+        console.log("向 PanCheck 发起检测请求...");
         const response = await $fetch.post(checkUrl, requestBody, { headers: PANCHECK_HEADERS, timeout: 30000 }); // 30秒超时
 
         if (response.status >= 200 && response.status < 300) {
             const data = response.data;
-            if (data && Array.isArray(data.valid_links)) {
-                console.log(`PanCheck 检测完成，有效链接数量: ${data.valid_links.length}`);
-                return new Set(data.valid_links);
+            if (data && data.submission_id !== undefined) {
+                const submissionId = data.submission_id;
+                console.log(`PanCheck 检测提交成功，ID: ${submissionId}`);
+
+                // 检查初始响应中是否有结果
+                if (data.valid_links && data.invalid_links && data.pending_links && data.pending_links.length === 0) {
+                    // 如果没有待处理的链接，直接返回初始结果
+                    console.log(`初始检测完成，有效链接: ${data.valid_links.length}, 失效链接: ${data.invalid_links.length}`);
+                    return {
+                        valid: new Set(data.valid_links),
+                        invalid: new Set(data.invalid_links)
+                    };
+                } else {
+                    // 如果有待处理的链接，开始轮询查询详细结果
+                    console.log(`发现 ${data.pending_links.length} 个待处理链接，开始轮询查询详细结果...`);
+                    return await pollForResult(submissionId);
+                }
             } else {
-                console.error("PanCheck 响应格式异常:", data);
+                console.error("PanCheck 响应格式异常，缺少 submission_id:", data);
                 // 如果响应格式不对，也返回所有链接为有效，避免阻塞
-                return new Set(links);
+                return { valid: new Set(links), invalid: new Set() };
             }
         } else {
             console.error(`PanCheck API请求失败，状态码: ${response.status}`, response.data);
             // 如果请求失败，也返回所有链接为有效，避免阻塞
-            return new Set(links);
+            return { valid: new Set(links), invalid: new Set() };
         }
     } catch (error) {
         console.error(`PanCheck API请求异常: ${error.message || error}`);
         // 如果请求出错，也返回所有链接为有效，避免阻塞
-        return new Set(links);
+        return { valid: new Set(links), invalid: new Set() };
     }
+}
+
+// 轮询查询检测结果
+async function pollForResult(submissionId) {
+    const pollUrl = `${PANCHECK_API_URL}/api/v1/submissions/${submissionId}`; // 尝试这个路径
+    const maxRetries = 10; // 最大重试次数
+    const pollInterval = 2000; // 轮询间隔 2秒
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            console.log(`轮询查询结果，尝试 ${attempt + 1}/${maxRetries}...`);
+            const response = await $fetch.get(pollUrl, { headers: PANCHECK_HEADERS, timeout: 10000 });
+
+            if (response.status >= 200 && response.status < 300) {
+                const result = response.data;
+                console.log("PanCheck 详细查询响应:", JSON.stringify(result));
+
+                if (result && result.status) {
+                    if (result.status === 'completed') {
+                        console.log(`PanCheck 检测完成，ID: ${submissionId}`);
+                        console.log(`有效链接: ${result.valid_links?.length || 0}, 失效链接: ${result.invalid_links?.length || 0}, 待处理: ${result.pending_links?.length || 0}`);
+                        // 返回详细结果
+                        return {
+                            valid: new Set(result.valid_links || []),
+                            invalid: new Set(result.invalid_links || [])
+                        };
+                    } else if (result.status === 'pending' || result.status === 'processing') {
+                        console.log(`PanCheck 任务仍在处理中，状态: ${result.status}`);
+                        await new Promise(resolve => setTimeout(resolve, pollInterval)); // 等待后继续轮询
+                        continue;
+                    } else {
+                        console.warn(`PanCheck 任务状态异常: ${result.status}`);
+                        // 对于其他状态，也返回当前已有的结果或空集合
+                        return {
+                            valid: new Set(result.valid_links || []),
+                            invalid: new Set(result.invalid_links || [])
+                        };
+                    }
+                } else {
+                    console.error("PanCheck 查询响应格式异常:", result);
+                    // 尝试使用旧的 API 路径 /api/v1/links/check/{submission_id}
+                    console.log("尝试使用旧的查询路径...");
+                    const oldPollUrl = `${PANCHECK_API_URL}/api/v1/links/check/${submissionId}`;
+                    const oldResponse = await $fetch.get(oldPollUrl, { headers: PANCHECK_HEADERS, timeout: 10000 });
+                    if (oldResponse.status >= 200 && oldResponse.status < 300) {
+                        const oldResult = oldResponse.data;
+                        console.log("PanCheck (旧路径) 详细查询响应:", JSON.stringify(oldResult));
+                        if (oldResult && oldResult.status === 'completed') {
+                            return {
+                                valid: new Set(oldResult.valid_links || []),
+                                invalid: new Set(oldResult.invalid_links || [])
+                            };
+                        }
+                    }
+                    // 如果旧路径也失败，继续轮询或返回
+                    await new Promise(resolve => setTimeout(resolve, pollInterval));
+                }
+            } else {
+                console.error(`PanCheck 查询请求失败，状态码: ${response.status}`, response.data);
+                await new Promise(resolve => setTimeout(resolve, pollInterval)); // 等待后继续轮询
+            }
+        } catch (error) {
+            console.error(`PanCheck 查询请求异常 (尝试 ${attempt + 1}): ${error.message || error}`);
+            if (attempt === maxRetries - 1) {
+                // 最后一次尝试失败，返回空集合
+                console.error("PanCheck 查询超时或失败，返回空结果。");
+                return { valid: new Set(), invalid: new Set() };
+            }
+            await new Promise(resolve => setTimeout(resolve, pollInterval)); // 等待后继续轮询
+        }
+    }
+
+    console.error(`PanCheck 查询超时，达到最大重试次数 ${maxRetries}。`);
+    return { valid: new Set(), invalid: new Set() }; // 超时返回空集合
 }
 
 
@@ -349,10 +434,13 @@ async function getCards(ext) {
 
         // 如果有启用链接检测
         let validLinksSet = new Set();
+        let invalidLinksSet = new Set(); // 用于调试或记录失效链接
         if (PANCHECK_ENABLED) {
             console.log("开始进行PanCheck链接有效性检测...");
-            validLinksSet = await checkLinksValidity(Array.from(uniqueLinks));
-            console.log("PanCheck链接有效性检测完成。");
+            const checkResult = await checkLinksValidity(Array.from(uniqueLinks));
+            validLinksSet = checkResult.valid;
+            invalidLinksSet = checkResult.invalid; // 可以用于日志记录
+            console.log("PanCheck链接有效性检测完成。有效链接数:", validLinksSet.size, "失效链接数:", invalidLinksSet.size);
         } else {
             // 如果未启用检测，将所有链接视为有效
             validLinksSet = uniqueLinks;
