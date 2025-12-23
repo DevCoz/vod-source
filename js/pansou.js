@@ -100,7 +100,6 @@
 	    try {
 	      const start = Date.now()
 	      const testUrl = `${url}/api/search`
-	      // 移除 timeout 选项以兼容性更好，使用系统默认超时
 	      const response = await $fetch.post(testUrl, { kw: "", limit: 1 }, { 
 	        headers: { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) }
 	      })
@@ -143,48 +142,31 @@
 	  if (!ca && cb) return 1
 	  return b.datetime - a.datetime
 	}
-	// ================= 网盘链接检测系统集成 (修复版) =================
-	/**
-	 * 使用 PanCheck API 过滤有效链接
-	 * 逻辑修改：如果检测失败或返回结果为空（全部失效），
-	 * 为了防止搜索无结果，默认返回原始列表。
-	 */
+	// ================= 网盘链接检测系统集成 =================
 	async function filterValidLinks(cards) {
-	  // 如果未配置检测地址或卡片列表为空，直接返回原列表
 	  if (!PANCHECK_URL || cards.length === 0) {
 	    return cards
 	  }
 	  $print(`开始网盘有效性检测，数量: ${cards.length}`)
-	  // 提取所有待检测的链接
 	  const linksToCheck = cards.map(card => card.vod_id)
 	  try {
-	    // 构造请求参数
-	    const requestBody = {
-	      links: linksToCheck
-	    }
-	    // 发送请求
-	    // 移除 timeout，防止在某些环境下不支持而导致请求错误
+	    const requestBody = { links: linksToCheck }
 	    const response = await $fetch.post(PANCHECK_URL, requestBody, { 
 	      headers: { 'Content-Type': 'application/json' }
 	    })
-	    // 检查响应是否存在
 	    if (!response) {
 	      $print("PanCheck 响应为空，检测失败")
 	      return cards
 	    }
-	    // 解析响应
 	    let data = response.data
 	    if (typeof data === 'string') {
 	      try { data = JSON.parse(data) } catch(e) { $print("PanCheck JSON解析失败"); return cards; }
 	    }
-	    // 验证响应格式并筛选有效链接
 	    if (data && Array.isArray(data.valid_links)) {
 	      const validSet = new Set(data.valid_links)
 	      const validCards = cards.filter(card => validSet.has(card.vod_id))
 	      $print(`检测完成，原始: ${cards.length}, 有效: ${validCards.length}`)
-	      // 【关键修复】：如果过滤后没有有效链接，但原始列表有数据
-	      // 为了防止用户看到空列表，这里返回原始列表（容错处理）
-	      // 如果需要严格模式（只显示有效），请去掉此 if 判断
+	      // 容错：如果过滤后没有结果，但原始有结果，返回原始列表
 	      if (validCards.length === 0 && cards.length > 0) {
 	        $print("警告：所有链接似乎均已失效，为保留搜索结果，返回原始列表。")
 	        return cards
@@ -196,7 +178,6 @@
 	    }
 	  } catch (error) {
 	    $print(`PanCheck 请求异常: ${error.message}`)
-	    // 发生错误（如网络超时、服务不可用），返回原数据，确保有结果显示
 	    return cards
 	  }
 	}
@@ -244,11 +225,20 @@
 	    if (data?.code === 0 && data?.data?.merged_by_type) {
 	      let cards = []
 	      const mergedData = data.data.merged_by_type
+	      // 遍历每个网盘类型
 	      for (const backendKey in mergedData) {
 	        const panConfig = Object.values(PAN_TYPES_MAP).find(cfg => cfg.backend_key === backendKey)
 	        const frontKey = panConfig ? Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === panConfig) : backendKey
 	        const pic = PAN_PIC_MAP[backendKey] || ''
-	        mergedData[backendKey].forEach(row => {
+	        // 获取该网盘类型的原始数据列表
+	        let rows = mergedData[backendKey]
+	        // 先按时间倒序排序（确保优先显示最新资源）
+	        rows.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())
+	        // 【核心修改】：限制每个网盘最多返回 10 个结果
+	        if (rows.length > 10) {
+	          rows = rows.slice(0, 10)
+	        }
+	        rows.forEach(row => {
 	          const source = (row.source || '').replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:')
 	          cards.push({
 	            vod_id: row.url,
@@ -267,7 +257,6 @@
 	            cards = await filterValidLinks(cards)
 	        } catch (e) {
 	            $print(`filterValidLinks 发生未捕获异常: ${e.message}`)
-	            // 异常情况下保持 cards 不变
 	        }
 	      }
 	      // ==========================================================
