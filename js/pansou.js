@@ -34,7 +34,7 @@
 	    // 处理时间戳 (秒或毫秒)
 	    if (/^\d+$/.test(datetimeStr)) {
 	      const ts = parseInt(datetimeStr)
-	      date = new Date(ts.length === 10 ? ts * 1000 : ts)
+	      date = new Date(ts.toString().length === 10 ? ts * 1000 : ts)
 	    } else {
 	      // 处理日期字符串
 	      date = new Date(datetimeStr)
@@ -62,6 +62,7 @@
 	const PAN_URLS = PAN_URLS_RAW.split(/[\n,]/).map(url => url.trim()).filter(url => url !== '')
 	const PAN_TOKEN = $config?.pansou_token || ""
 	// 网盘类型映射 (前端键 -> {启用状态, 后端键})
+	// 根据 README.md 支持的类型进行映射
 	const PAN_TYPES_MAP = {
 	  quark: { enabled: $config?.quark !== false, backend_key: "quark" },
 	  uc: { enabled: $config?.uc !== false, backend_key: "uc" },
@@ -74,7 +75,7 @@
 	  baidu: { enabled: $config?.baidu !== false, backend_key: "baidu" },
 	  ali: { enabled: $config?.ali !== false, backend_key: "aliyun" }
 	}
-	// 网盘图标映射
+	// 网盘图标映射 (键对应 backend_key)
 	const PAN_PIC_MAP = {
 	  aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
 	  quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
@@ -90,22 +91,26 @@
 	// 缓存可用的 API 地址
 	let cachedApiUrl = null
 	// ================= 核心逻辑 =================
-	// 获取可用的 API 地址 (带缓存)
+	// 获取可用的 API 地址 (优化：使用 /api/health 接口检测)
 	async function getAvailableAPI() {
 	  if (cachedApiUrl) return cachedApiUrl
 	  if (PAN_URLS.length === 0) return null
-	  // 并发检测所有 URL 的延迟，选择最快的一个
+	  // 并发检测所有 URL 的健康状态，选择最快的一个
 	  const tasks = PAN_URLS.map(async (url) => {
 	    try {
 	      const start = Date.now()
-	      // 使用简单的 ping 或搜索空词检测，设置较短超时
-	      const testUrl = `${url}/api/search`
-	      const response = await $fetch.post(testUrl, { kw: "", limit: 1 }, { 
-	        headers: { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) },
-	        timeout: 3000 
-	      })
+	      // 使用 README.md 中定义的 /api/health 接口进行检测，更轻量且准确
+	      const healthUrl = `${url}/api/health`
+	      const headers = { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) }
+	      const response = await $fetch.get(healthUrl, { headers, timeout: 3000 })
 	      const latency = Date.now() - start
-	      if (response.status >= 200 && response.status < 300) {
+	      // 检查状态码和响应体中的 status
+	      let isValid = response.status >= 200 && response.status < 300
+	      if (isValid && response.data) {
+	        const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
+	        if (data.status !== 'ok') isValid = false
+	      }
+	      if (isValid) {
 	        return { url, latency }
 	      }
 	    } catch (e) {
@@ -157,7 +162,10 @@
 	    ver: 1,
 	    title: "盘搜CF｜PAN",
 	    site: PAN_URLS[0] || "PanSou",
-	    tabs: [{ name: '搜索', ext: jsonify({ id: 'search' }) }]
+	    tabs: [{ 
+	      name: '搜索', 
+	      ext: jsonify({ id: 'search' }) 
+	    }]
 	  })
 	}
 	async function getCards(ext) {
@@ -182,13 +190,12 @@
 	    $utils.toastError("未启用任何网盘类型")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
+	  // 构建请求体，参数符合 PanSou API 文档
 	  const requestBody = {
 	    kw: searchText,
 	    filter: { include: QUALITY_KEYWORDS, exclude: ["枪版", "预告", "彩蛋"] },
-	    cloud_types: enabledCloudTypes,
-	    // 限制返回数量，避免过大，前端进行内存分页和排序
-	    limit: 100, 
-	    page: 1
+	    cloud_types: enabledCloudTypes
+	    // 注意：API 文档未提供 limit 和 page 参数，因此移除，依赖客户端分页
 	  }
 	  const headers = { ...BASE_HEADERS }
 	  if (PAN_TOKEN) headers['Authorization'] = `Bearer ${PAN_TOKEN}`
@@ -196,9 +203,11 @@
 	    const response = await $fetch.post(`${apiUrl}/api/search`, requestBody, { headers: headers })
 	    let data = response.data
 	    if (typeof data === 'string') data = JSON.parse(data)
-	    if (data?.code === 0 && data?.data?.merged_by_type) {
+	    // 兼容处理：直接返回 merged_by_type 或包裹在 data 中
+	    // 根据 README.md，成功响应直接包含 merged_by_type，但也可能有中间层代理包裹
+	    const mergedData = data?.merged_by_type || data?.data?.merged_by_type
+	    if (mergedData) {
 	      let cards = []
-	      const mergedData = data.data.merged_by_type
 	      // 遍历所有类型的资源
 	      for (const backendKey in mergedData) {
 	        // 反向查找前端配置键名
@@ -213,7 +222,7 @@
 	            vod_pic: pic,
 	            vod_remarks: `${source} | ${frontKey} | ${formatDateTime(row.datetime)}`,
 	            datetime: new Date(row.datetime).getTime(),
-	            pan: frontKey,
+	            pan: frontKey, // xptv 识别字段
 	            ext: jsonify({ panSouResult: row, searchText })
 	          })
 	        })
@@ -256,15 +265,16 @@
 	    $utils.toastError("数据丢失，请重新搜索")
 	    return jsonify({ list: [] })
 	  }
+	  // xptv 格式要求
 	  const tracks = [{
-	    name: row.note + (row.password ? ` (密码: ${row.password})` : ''),
-	    pan: row.url,
-	    pwd: row.password || ''
+	    name: row.note + (row.password ? ` [密码: ${row.password}]` : ''),
+	    pan: row.url, // 用于网盘唤起
+	    pwd: row.password || '' // 密码
 	  }]
 	  return jsonify({ list: [{ title: '网盘链接', tracks }] })
 	}
 	async function getPlayinfo(ext) {
-	  // 网盘类通常不直接播放视频，返回空即可
+	  // 网盘类通常不直接播放视频，返回空即可，xptv 会识别 pan 字段
 	  return jsonify({ urls: [], headers: [] })
 	}
 	async function search(ext) {
