@@ -81,6 +81,7 @@
 	  baidu: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
 	}
 	let cachedApiUrl = null
+	// ================= 核心逻辑 =================
 	async function getAvailableAPI() {
 	  if (cachedApiUrl) return cachedApiUrl
 	  if (PAN_URLS.length === 0) return null
@@ -181,18 +182,16 @@
 	        const panConfig = Object.values(PAN_TYPES_MAP).find(cfg => cfg.backend_key === backendKey)
 	        const frontKey = panConfig ? Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === panConfig) : backendKey
 	        const pic = PAN_PIC_MAP[backendKey] || ''
-	        // 获取该类型的所有结果
 	        const typeResults = mergedData[backendKey]
-	        // 按时间降序排序（最新的在前）
+	        // 1. 先按时间降序排序 (确保选到最新的)
 	        typeResults.sort((a, b) => {
-	            const timeA = new Date(a.datetime).getTime() || 0
-	            const timeB = new Date(b.datetime).getTime() || 0
-	            return timeB - timeA
+	          const timeA = new Date(a.datetime).getTime() || 0
+	          const timeB = new Date(b.datetime).getTime() || 0
+	          return timeB - timeA
 	        })
-	        // 只取最新的10个
-	        const latestResults = typeResults.slice(0, 10)
-	        // 遍历这10个结果
-	        latestResults.forEach(row => {
+	        // 2. 限制每个网盘类型仅返回 10 个结果
+	        const limitedResults = typeResults.slice(0, 10)
+	        limitedResults.forEach(row => {
 	          const source = (row.source || '').replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:')
 	          cards.push({
 	            vod_id: row.url,
@@ -205,6 +204,7 @@
 	          })
 	        })
 	      }
+	      // 构建优先级映射
 	      const userPriority = $config?.pan_priority || []
 	      const priorityMap = {}
 	      let fallbackIndex = userPriority.length
@@ -214,7 +214,7 @@
 	      Object.keys(PAN_TYPES_MAP).forEach(key => {
 	        if (priorityMap[key] === undefined) priorityMap[key] = fallbackIndex++
 	      })
-	      // 全局排序
+	      // 全局排序：按用户配置的网盘优先级、画质、时间排序
 	      cards.sort((a, b) => sortCardsFunc(a, b, priorityMap))
 	      // 内存分页
 	      const pageSize = 20
