@@ -1,11 +1,25 @@
-// 自定义配置格式 {"pansou_urls":"https://pansou.xxx.com,https://pansou2.xxx.com","pansou_token":"","quark":true,"uc":true,"pikpak":true,"xunlei":true,"a123":true,"a189":true,"a139":true,"a115":true,"baidu":true,"ali":true,"pan_priority":["ali","quark","uc","pikpak","xunlei","a123","a189","a139","a115","baidu"]}
+	// 自定义配置格式
+	// {
+	//   "pansou_urls": "https://pansou.xxx.com,https://pansou2.xxx.com",
+	//   "pansou_token": "",
+	//   "pancheck_url": "http://your-pancheck-server.com/api/v1/links/check", // 新增：网盘链接检测系统地址，留空则不检测
+	//   "quark": true,
+	//   "uc": true,
+	//   "pikpak": true,
+	//   "xunlei": true,
+	//   "a123": true,
+	//   "a189": true,
+	//   "a139": true,
+	//   "a115": true,
+	//   "baidu": true,
+	//   "ali": true,
+	//   "pan_priority": ["ali", "quark", "uc", "pikpak", "xunlei", "a123", "a189", "a139", "a115", "baidu"]
+	// }
 // pansou_urls: 盘搜API地址，支持多个，用逗号(,)或换行分隔，例如 "https://pansou1.com,https://pansou2.com" 或 "https://pansou1.com\nhttps://pansou2.com"。系统会自动轮询检测，优先使用响应最快的节点。
 // pansou_token: 如果该实例启用了认证，请填入JWT Token，否则留空
 // quark,uc,pikpak,xunlei,a123,a189,a139,a115,baidu,ali: 布尔值，true表示启用该网盘，false表示禁用。结果中不会显示被禁用的网盘。
 // pan_priority: 数组，定义网盘的优先级顺序，越靠前优先级越高。例如 ["ali","quark","uc"] 表示阿里云盘优先级最高，其次是夸克，然后是UC。未在此数组中的网盘将排在最后，顺序按配置顺序。
-
-// XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
-
+	// XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
 	const $config = argsify($config_str)
 	// ================= 工具函数 =================
 	function jsonify(obj) {
@@ -23,12 +37,10 @@
 	function formatDateTime(datetimeStr) {
 	  try {
 	    let date
-	    // 处理时间戳 (秒或毫秒)
 	    if (/^\d+$/.test(datetimeStr)) {
 	      const ts = parseInt(datetimeStr)
 	      date = new Date(ts.length === 10 ? ts * 1000 : ts)
 	    } else {
-	      // 处理日期字符串
 	      date = new Date(datetimeStr)
 	    }
 	    if (!isNaN(date.getTime())) {
@@ -53,6 +65,8 @@
 	const PAN_URLS_RAW = $config?.pansou_urls || ""
 	const PAN_URLS = PAN_URLS_RAW.split(/[\n,]/).map(url => url.trim()).filter(url => url !== '')
 	const PAN_TOKEN = $config?.pansou_token || ""
+	// 解析网盘检测系统地址
+	const PANCHECK_URL = $config?.pancheck_url || ""
 	// 网盘类型映射 (前端键 -> {启用状态, 后端键})
 	const PAN_TYPES_MAP = {
 	  quark: { enabled: $config?.quark !== false, backend_key: "quark" },
@@ -86,11 +100,9 @@
 	async function getAvailableAPI() {
 	  if (cachedApiUrl) return cachedApiUrl
 	  if (PAN_URLS.length === 0) return null
-	  // 并发检测所有 URL 的延迟，选择最快的一个
 	  const tasks = PAN_URLS.map(async (url) => {
 	    try {
 	      const start = Date.now()
-	      // 使用简单的 ping 或搜索空词检测，设置较短超时
 	      const testUrl = `${url}/api/search`
 	      const response = await $fetch.post(testUrl, { kw: "", limit: 1 }, { 
 	        headers: { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) },
@@ -100,13 +112,10 @@
 	      if (response.status >= 200 && response.status < 300) {
 	        return { url, latency }
 	      }
-	    } catch (e) {
-	      // 忽略单个错误
-	    }
+	    } catch (e) {}
 	    return null
 	  })
 	  const results = await Promise.all(tasks)
-	  // 过滤掉失败的，按延迟排序
 	  const validResults = results.filter(r => r !== null).sort((a, b) => a.latency - b.latency)
 	  if (validResults.length > 0) {
 	    cachedApiUrl = validResults[0].url
@@ -115,33 +124,76 @@
 	  }
 	  return null
 	}
-	// 计算综合得分用于排序
 	function getCardScore(name) {
 	  let score = 0
 	  const upper = name.toUpperCase()
-	  // 简单的关键词加权
 	  QUALITY_KEYWORDS.forEach(kw => {
 	    if (upper.includes(kw.toUpperCase())) score += 10
 	  })
 	  return score
 	}
-	// 排序比较函数
 	function sortCardsFunc(a, b, priorityMap) {
-	  // 1. 优先级
 	  const pa = priorityMap[a.pan] ?? 999
 	  const pb = priorityMap[b.pan] ?? 999
 	  if (pa !== pb) return pa - pb
-	  // 2. 画质分数
 	  const sa = getCardScore(a.vod_name)
 	  const sb = getCardScore(b.vod_name)
 	  if (sa !== sb) return sb - sa
-	  // 3. 完结状态
 	  const ca = COMPLETED_KEYWORDS.some(k => a.vod_name.toUpperCase().includes(k))
 	  const cb = COMPLETED_KEYWORDS.some(k => b.vod_name.toUpperCase().includes(k))
 	  if (ca && !cb) return -1
 	  if (!ca && cb) return 1
-	  // 4. 时间倒序
 	  return b.datetime - a.datetime
+	}
+	// ================= 网盘链接检测系统集成 (更新版) =================
+	/**
+	 * 使用 PanCheck API 过滤有效链接
+	 * 接口文档: POST /api/v1/links/check
+	 * 请求体: { "links": ["url1", "url2"], "selectedPlatforms": [...] }
+	 * 响应体: { "valid_links": [...], "invalid_links": [...] }
+	 */
+	async function filterValidLinks(cards) {
+	  // 如果未配置检测地址或卡片列表为空，直接返回原列表
+	  if (!PANCHECK_URL || cards.length === 0) {
+	    return cards
+	  }
+	  console.log(`开始网盘有效性检测，数量: ${cards.length}`)
+	  // 提取所有待检测的链接
+	  const linksToCheck = cards.map(card => card.vod_id)
+	  try {
+	    // 构造请求参数
+	    // 注意：这里不传 selectedPlatforms，让后端自动识别，兼容性更好
+	    const requestBody = {
+	      links: linksToCheck
+	    }
+	    // 发送请求，超时时间设置为15秒，因为批量检测可能需要较长时间
+	    const response = await $fetch.post(PANCHECK_URL, requestBody, { 
+	      timeout: 15000,
+	      headers: { 'Content-Type': 'application/json' }
+	    })
+	    // 解析响应
+	    let data = response.data
+	    if (typeof data === 'string') {
+	      try { data = JSON.parse(data) } catch(e) {}
+	    }
+	    // 验证响应格式并筛选有效链接
+	    if (data && Array.isArray(data.valid_links)) {
+	      const validSet = new Set(data.valid_links)
+	      const validCards = cards.filter(card => validSet.has(card.vod_id))
+	      console.log(`检测完成，有效: ${validCards.length}/${cards.length}`)
+	      // 可选：如果用户只想看有效链接，直接返回 validCards
+	      // 如果想保留所有链接但在备注中标记，可以在这里修改 card.vod_remarks
+	      return validCards
+	    } else {
+	      console.warn(`PanCheck 响应格式异常: ${JSON.stringify(data)}`)
+	      // 检测失败时，为了用户体验，返回原数据（可根据需求改为返回空）
+	      return cards
+	    }
+	  } catch (error) {
+	    console.error(`PanCheck 请求失败: ${error.message}`)
+	    // 发生错误（如网络超时、服务不可用），返回原数据
+	    return cards
+	  }
 	}
 	// ================= 接口实现 =================
 	async function getConfig() {
@@ -154,19 +206,16 @@
 	}
 	async function getCards(ext) {
 	  ext = argsify(ext)
-	  // 获取搜索关键词
 	  let searchText = ext.search_text || ext.text || ext.query || ""
 	  if (!searchText) {
 	    $utils.toastError("请输入关键词开始搜索")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
-	  // 获取 API 地址
 	  const apiUrl = await getAvailableAPI()
 	  if (!apiUrl) {
 	    $utils.toastError("所有配置的 API 地址均不可用")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
-	  // 构建请求
 	  const enabledCloudTypes = Object.keys(PAN_TYPES_MAP)
 	    .filter(key => PAN_TYPES_MAP[key].enabled)
 	    .map(key => PAN_TYPES_MAP[key].backend_key)
@@ -178,7 +227,6 @@
 	    kw: searchText,
 	    filter: { include: QUALITY_KEYWORDS, exclude: ["枪版", "预告", "彩蛋"] },
 	    cloud_types: enabledCloudTypes,
-	    // 限制返回数量，避免过大，前端进行内存分页和排序
 	    limit: 100, 
 	    page: 1
 	  }
@@ -191,9 +239,7 @@
 	    if (data?.code === 0 && data?.data?.merged_by_type) {
 	      let cards = []
 	      const mergedData = data.data.merged_by_type
-	      // 遍历所有类型的资源
 	      for (const backendKey in mergedData) {
-	        // 反向查找前端配置键名
 	        const panConfig = Object.values(PAN_TYPES_MAP).find(cfg => cfg.backend_key === backendKey)
 	        const frontKey = panConfig ? Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === panConfig) : backendKey
 	        const pic = PAN_PIC_MAP[backendKey] || ''
@@ -210,21 +256,22 @@
 	          })
 	        })
 	      }
-	      // 构建优先级映射
+	      // ================== 调用网盘链接检测系统 ==================
+	      if (cards.length > 0) {
+	        // 对搜索结果进行有效性过滤，仅保留有效链接
+	        cards = await filterValidLinks(cards)
+	      }
+	      // ==========================================================
 	      const userPriority = $config?.pan_priority || []
 	      const priorityMap = {}
 	      let fallbackIndex = userPriority.length
-	      // 用户自定义优先级
 	      userPriority.forEach((key, idx) => {
 	        if (PAN_TYPES_MAP[key]) priorityMap[key] = idx
 	      })
-	      // 剩余启用的优先级
 	      Object.keys(PAN_TYPES_MAP).forEach(key => {
 	        if (priorityMap[key] === undefined) priorityMap[key] = fallbackIndex++
 	      })
-	      // 排序
 	      cards.sort((a, b) => sortCardsFunc(a, b, priorityMap))
-	      // 内存分页
 	      const pageSize = 20
 	      const page = parseInt(ext.page) || 1
 	      const total = cards.length
@@ -256,7 +303,6 @@
 	  return jsonify({ list: [{ title: '网盘链接', tracks }] })
 	}
 	async function getPlayinfo(ext) {
-	  // 网盘类通常不直接播放视频，返回空即可
 	  return jsonify({ urls: [], headers: [] })
 	}
 	async function search(ext) {
