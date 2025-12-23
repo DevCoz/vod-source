@@ -14,7 +14,6 @@
 //   "ali": true,
 //   "pan_priority": ["quark", "uc", "ali", "a189", "pikpak", "xunlei", "a123", "a139", "a115", "baidu"]
 // }
-	// ================= 全局初始化 =================
 	const $config = argsify($config_str)
 	// ================= 工具函数 =================
 	function jsonify(obj) {
@@ -28,13 +27,16 @@
 	    return {}
 	  }
 	}
+	// 格式化日期 MMDDYY
 	function formatDateTime(datetimeStr) {
 	  try {
 	    let date
+	    // 处理时间戳 (秒或毫秒)
 	    if (/^\d+$/.test(datetimeStr)) {
 	      const ts = parseInt(datetimeStr)
 	      date = new Date(ts.length === 10 ? ts * 1000 : ts)
 	    } else {
+	      // 处理日期字符串
 	      date = new Date(datetimeStr)
 	    }
 	    if (!isNaN(date.getTime())) {
@@ -47,17 +49,19 @@
 	  return '未知'
 	}
 	// ================= 常量与配置 =================
+	// 优先级关键词
 	const QUALITY_KEYWORDS = ['HDR', '杜比', 'DV', 'REMUX', 'HQ', '臻彩', '高码', '高画质', '60FPS', '60帧', '高帧率', '60HZ', '4K', '2160P']
 	const COMPLETED_KEYWORDS = ['完结', '全集', '已完成', '全']
-	const CACHE_KEY_NODES = "pansou_nodes_cache_v1" // 缓存键
-	const CACHE_TTL = 600 * 1000 // 缓存有效期10分钟
+	// 公共请求头
 	const BASE_HEADERS = {
 	  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
 	  'Content-Type': 'application/json',
 	}
+	// 解析 API 地址列表
 	const PAN_URLS_RAW = $config?.pansou_urls || ""
 	const PAN_URLS = PAN_URLS_RAW.split(/[\n,]/).map(url => url.trim()).filter(url => url !== '')
 	const PAN_TOKEN = $config?.pansou_token || ""
+	// 网盘类型映射 (前端键 -> {启用状态, 后端键})
 	const PAN_TYPES_MAP = {
 	  quark: { enabled: $config?.quark !== false, backend_key: "quark" },
 	  uc: { enabled: $config?.uc !== false, backend_key: "uc" },
@@ -70,6 +74,7 @@
 	  baidu: { enabled: $config?.baidu !== false, backend_key: "baidu" },
 	  ali: { enabled: $config?.ali !== false, backend_key: "aliyun" }
 	}
+	// 网盘图标映射
 	const PAN_PIC_MAP = {
 	  aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
 	  quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
@@ -82,104 +87,94 @@
 	  '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
 	  baidu: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
 	}
+	// 缓存可用的 API 地址
+	let cachedApiUrl = null
 	// ================= 核心逻辑 =================
-	// 获取节点列表（带缓存检测）
-	async function getApiNodes() {
-	  // 1. 尝试从缓存读取
-	  try {
-	    const cachedStr = $cache.get(CACHE_KEY_NODES)
-	    if (cachedStr) {
-	      const cached = argsify(cachedStr)
-	      if (cached.timestamp && (Date.now() - cached.timestamp < CACHE_TTL)) {
-	        $print(`[PanSou] 使用缓存的节点列表 (剩余${Math.ceil((CACHE_TTL - (Date.now() - cached.timestamp))/1000)}s)`)
-	        return cached.list
-	      }
-	    }
-	  } catch (e) {
-	    $print(`[PanSou] 读取缓存失败: ${e.message}`)
-	  }
-	  // 2. 缓存失效或不存在，执行全网测速
-	  $print("[PanSou] 开始全网测速...")
-	  if (PAN_URLS.length === 0) return []
+	// 获取可用的 API 地址 (带缓存)
+	async function getAvailableAPI() {
+	  if (cachedApiUrl) return cachedApiUrl
+	  if (PAN_URLS.length === 0) return null
+	  // 并发检测所有 URL 的延迟，选择最快的一个
 	  const tasks = PAN_URLS.map(async (url) => {
 	    try {
 	      const start = Date.now()
+	      // 使用简单的 ping 或搜索空词检测，设置较短超时
 	      const testUrl = `${url}/api/search`
-	      const headers = { ...BASE_HEADERS }
-	      if (PAN_TOKEN) headers['Authorization'] = `Bearer ${PAN_TOKEN}`
-	      await $fetch.post(testUrl, { kw: "test", cloud_types: ["baidu"] }, { 
-	        headers: headers, 
-	        timeout: 5000 
+	      const response = await $fetch.post(testUrl, { kw: "", limit: 1 }, { 
+	        headers: { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) },
+	        timeout: 3000 
 	      })
 	      const latency = Date.now() - start
-	      $print(`[PanSou] 节点 ${url} 延迟: ${latency}ms`)
-	      return { url, latency }
+	      if (response.status >= 200 && response.status < 300) {
+	        return { url, latency }
+	      }
 	    } catch (e) {
-	      $print(`[PanSou] 节点 ${url} 不可用`)
-	      return null
+	      // 忽略单个错误
 	    }
+	    return null
 	  })
 	  const results = await Promise.all(tasks)
+	  // 过滤掉失败的，按延迟排序
 	  const validResults = results.filter(r => r !== null).sort((a, b) => a.latency - b.latency)
-	  // 3. 存入缓存
 	  if (validResults.length > 0) {
-	    const cacheData = {
-	      timestamp: Date.now(),
-	      list: validResults
-	    }
-	    $cache.set(CACHE_KEY_NODES, jsonify(cacheData))
-	    $print(`[PanSou] 测速完成，最佳节点: ${validResults[0].url} (${validResults[0].latency}ms)`)
-	    return validResults
+	    cachedApiUrl = validResults[0].url
+	    console.log(`PanSou API selected: ${cachedApiUrl} (${validResults[0].latency}ms)`)
+	    return cachedApiUrl
 	  }
-	  return []
+	  return null
 	}
+	// 计算综合得分用于排序
 	function getCardScore(name) {
 	  let score = 0
 	  const upper = name.toUpperCase()
+	  // 简单的关键词加权
 	  QUALITY_KEYWORDS.forEach(kw => {
 	    if (upper.includes(kw.toUpperCase())) score += 10
 	  })
 	  return score
 	}
+	// 排序比较函数
 	function sortCardsFunc(a, b, priorityMap) {
+	  // 1. 优先级
 	  const pa = priorityMap[a.pan] ?? 999
 	  const pb = priorityMap[b.pan] ?? 999
 	  if (pa !== pb) return pa - pb
+	  // 2. 画质分数
 	  const sa = getCardScore(a.vod_name)
 	  const sb = getCardScore(b.vod_name)
 	  if (sa !== sb) return sb - sa
+	  // 3. 完结状态
 	  const ca = COMPLETED_KEYWORDS.some(k => a.vod_name.toUpperCase().includes(k))
 	  const cb = COMPLETED_KEYWORDS.some(k => b.vod_name.toUpperCase().includes(k))
 	  if (ca && !cb) return -1
 	  if (!ca && cb) return 1
+	  // 4. 时间倒序
 	  return b.datetime - a.datetime
 	}
 	// ================= 接口实现 =================
 	async function getConfig() {
-	  const appConfig = {
+	  return jsonify({
 	    ver: 1,
 	    title: "盘搜CF｜PAN",
 	    site: PAN_URLS[0] || "PanSou",
-	    tabs: [{ 
-	      name: '搜索', 
-	      ext: jsonify({ id: 'search' }) 
-	    }]
-	  }
-	  return jsonify(appConfig)
+	    tabs: [{ name: '搜索', ext: jsonify({ id: 'search' }) }]
+	  })
 	}
 	async function getCards(ext) {
 	  ext = argsify(ext)
-	  const searchText = ext.search_text || ext.text || ext.query || ""
+	  // 获取搜索关键词
+	  let searchText = ext.search_text || ext.text || ext.query || ""
 	  if (!searchText) {
 	    $utils.toastError("请输入关键词开始搜索")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
-	  // 获取可用节点
-	  let nodes = await getApiNodes()
-	  if (nodes.length === 0) {
+	  // 获取 API 地址
+	  const apiUrl = await getAvailableAPI()
+	  if (!apiUrl) {
 	    $utils.toastError("所有配置的 API 地址均不可用")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
+	  // 构建请求
 	  const enabledCloudTypes = Object.keys(PAN_TYPES_MAP)
 	    .filter(key => PAN_TYPES_MAP[key].enabled)
 	    .map(key => PAN_TYPES_MAP[key].backend_key)
@@ -190,70 +185,69 @@
 	  const requestBody = {
 	    kw: searchText,
 	    filter: { include: QUALITY_KEYWORDS, exclude: ["枪版", "预告", "彩蛋"] },
-	    cloud_types: enabledCloudTypes
+	    cloud_types: enabledCloudTypes,
+	    // 限制返回数量，避免过大，前端进行内存分页和排序
+	    limit: 100, 
+	    page: 1
 	  }
 	  const headers = { ...BASE_HEADERS }
 	  if (PAN_TOKEN) headers['Authorization'] = `Bearer ${PAN_TOKEN}`
-	  let lastError = null
-	  // 遍历节点尝试请求（故障自动切换）
-	  for (let i = 0; i < nodes.length; i++) {
-	    const currentNode = nodes[i]
-	    try {
-	      $print(`[PanSou] 正在请求节点: ${currentNode.url}`)
-	      const response = await $fetch.post(`${currentNode.url}/api/search`, requestBody, { headers: headers })
-	      let data = response.data
-	      if (typeof data === 'string') data = JSON.parse(data)
-	      if ((data?.code === 0 || !data?.code) && data?.data?.merged_by_type) {
-	        $print(`[PanSou] 节点 ${currentNode.url} 请求成功`)
-	        let cards = []
-	        const mergedData = data.data.merged_by_type
-	        for (const backendKey in mergedData) {
-	          const panConfig = Object.values(PAN_TYPES_MAP).find(cfg => cfg.backend_key === backendKey)
-	          const frontKey = panConfig ? Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === panConfig) : backendKey
-	          const pic = PAN_PIC_MAP[backendKey] || ''
-	          let rows = mergedData[backendKey]
-	          rows.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())
-	          if (rows.length > 15) rows = rows.slice(0, 15)
-	          rows.forEach(row => {
-	            const source = (row.source || '').replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:')
-	            cards.push({
-	              vod_id: row.url,
-	              vod_name: row.note || '未命名资源',
-	              vod_pic: pic,
-	              vod_remarks: `${source} | ${frontKey} | ${formatDateTime(row.datetime)}`,
-	              datetime: new Date(row.datetime).getTime(),
-	              pan: frontKey,
-	              ext: jsonify({ panSouResult: row, searchText })
-	            })
+	  try {
+	    const response = await $fetch.post(`${apiUrl}/api/search`, requestBody, { headers: headers })
+	    let data = response.data
+	    if (typeof data === 'string') data = JSON.parse(data)
+	    if (data?.code === 0 && data?.data?.merged_by_type) {
+	      let cards = []
+	      const mergedData = data.data.merged_by_type
+	      // 遍历所有类型的资源
+	      for (const backendKey in mergedData) {
+	        // 反向查找前端配置键名
+	        const panConfig = Object.values(PAN_TYPES_MAP).find(cfg => cfg.backend_key === backendKey)
+	        const frontKey = panConfig ? Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === panConfig) : backendKey
+	        const pic = PAN_PIC_MAP[backendKey] || ''
+	        mergedData[backendKey].forEach(row => {
+	          const source = (row.source || '').replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:')
+	          cards.push({
+	            vod_id: row.url,
+	            vod_name: row.note || '未命名资源',
+	            vod_pic: pic,
+	            vod_remarks: `${source} | ${frontKey} | ${formatDateTime(row.datetime)}`,
+	            datetime: new Date(row.datetime).getTime(),
+	            pan: frontKey,
+	            ext: jsonify({ panSouResult: row, searchText })
 	          })
-	        }
-	        // 排序逻辑
-	        const userPriority = $config?.pan_priority || []
-	        const priorityMap = {}
-	        let fallbackIndex = userPriority.length
-	        userPriority.forEach((key, idx) => {
-	          if (PAN_TYPES_MAP[key]) priorityMap[key] = idx
 	        })
-	        Object.keys(PAN_TYPES_MAP).forEach(key => {
-	          if (priorityMap[key] === undefined) priorityMap[key] = fallbackIndex++
-	        })
-	        cards.sort((a, b) => sortCardsFunc(a, b, priorityMap))
-	        // 分页逻辑
-	        const pageSize = 20
-	        const page = parseInt(ext.page) || 1
-	        const total = cards.length
-	        const pagecount = Math.ceil(total / pageSize) || 1
-	        const start = (page - 1) * pageSize
-	        const list = cards.slice(start, start + pageSize)
-	        return jsonify({ list, page, pagecount, total })
 	      }
-	    } catch (error) {
-	      lastError = error
-	      $print(`[PanSou] 节点 ${currentNode.url} 失败: ${error.message}, 尝试下一个...`)
+	      // 构建优先级映射
+	      const userPriority = $config?.pan_priority || []
+	      const priorityMap = {}
+	      let fallbackIndex = userPriority.length
+	      // 用户自定义优先级
+	      userPriority.forEach((key, idx) => {
+	        if (PAN_TYPES_MAP[key]) priorityMap[key] = idx
+	      })
+	      // 剩余启用的优先级
+	      Object.keys(PAN_TYPES_MAP).forEach(key => {
+	        if (priorityMap[key] === undefined) priorityMap[key] = fallbackIndex++
+	      })
+	      // 排序
+	      cards.sort((a, b) => sortCardsFunc(a, b, priorityMap))
+	      // 内存分页
+	      const pageSize = 20
+	      const page = parseInt(ext.page) || 1
+	      const total = cards.length
+	      const pagecount = Math.ceil(total / pageSize) || 1
+	      const start = (page - 1) * pageSize
+	      const list = cards.slice(start, start + pageSize)
+	      return jsonify({ list, page, pagecount, total })
+	    } else {
+	      $utils.toastError("API返回无数据或格式异常")
+	      return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	    }
+	  } catch (error) {
+	    $utils.toastError(`请求失败: ${error.message}`)
+	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
-	  $utils.toastError(`所有节点请求失败`)
-	  return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	}
 	async function getTracks(ext) {
 	  ext = argsify(ext)
@@ -270,10 +264,7 @@
 	  return jsonify({ list: [{ title: '网盘链接', tracks }] })
 	}
 	async function getPlayinfo(ext) {
-	  ext = argsify(ext)
-	  // ext.url 应该在 getTracks 中不传递 url，因为我们只是展示网盘链接
-	  // 如果需要实际播放（通常网盘不支持直接播放），这里可以留空或返回处理逻辑
-	  // 根据现有逻辑，这里主要返回空，由用户查看网盘地址
+	  // 网盘类通常不直接播放视频，返回空即可
 	  return jsonify({ urls: [], headers: [] })
 	}
 	async function search(ext) {
