@@ -107,7 +107,6 @@
 	  const validResults = results.filter(r => r !== null).sort((a, b) => a.latency - b.latency)
 	  if (validResults.length > 0) {
 	    cachedApiUrl = validResults[0].url
-	    console.log(`PanSou API selected: ${cachedApiUrl} (${validResults[0].latency}ms)`)
 	    return cachedApiUrl
 	  }
 	  return null
