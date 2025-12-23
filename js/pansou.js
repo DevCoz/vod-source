@@ -2,7 +2,6 @@
 	// {
 	//   "pansou_urls": "https://pansou.xxx.com,https://pansou2.xxx.com",
 	//   "pansou_token": "",
-	//   "pancheck_url": "http://your-pancheck-server.com/api/v1/links/check", // 新增：网盘链接检测系统地址，留空则不检测
 	//   "quark": true,
 	//   "uc": true,
 	//   "pikpak": true,
@@ -61,8 +60,6 @@
 	const PAN_URLS_RAW = $config?.pansou_urls || ""
 	const PAN_URLS = PAN_URLS_RAW.split(/[\n,]/).map(url => url.trim()).filter(url => url !== '')
 	const PAN_TOKEN = $config?.pansou_token || ""
-	// 解析网盘检测系统地址
-	const PANCHECK_URL = $config?.pancheck_url || ""
 	// 网盘类型映射 (前端键 -> {启用状态, 后端键})
 	const PAN_TYPES_MAP = {
 	  quark: { enabled: $config?.quark !== false, backend_key: "quark" },
@@ -108,7 +105,7 @@
 	        return { url, latency }
 	      }
 	    } catch (e) {
-	      $print(`API检测异常: ${url} - ${e.message}`)
+	      // 忽略错误
 	    }
 	    return null
 	  })
@@ -116,7 +113,6 @@
 	  const validResults = results.filter(r => r !== null).sort((a, b) => a.latency - b.latency)
 	  if (validResults.length > 0) {
 	    cachedApiUrl = validResults[0].url
-	    $print(`PanSou API selected: ${cachedApiUrl} (${validResults[0].latency}ms)`)
 	    return cachedApiUrl
 	  }
 	  return null
@@ -141,45 +137,6 @@
 	  if (ca && !cb) return -1
 	  if (!ca && cb) return 1
 	  return b.datetime - a.datetime
-	}
-	// ================= 网盘链接检测系统集成 =================
-	async function filterValidLinks(cards) {
-	  if (!PANCHECK_URL || cards.length === 0) {
-	    return cards
-	  }
-	  $print(`开始网盘有效性检测，数量: ${cards.length}`)
-	  const linksToCheck = cards.map(card => card.vod_id)
-	  try {
-	    const requestBody = { links: linksToCheck }
-	    const response = await $fetch.post(PANCHECK_URL, requestBody, { 
-	      headers: { 'Content-Type': 'application/json' }
-	    })
-	    if (!response) {
-	      $print("PanCheck 响应为空，检测失败")
-	      return cards
-	    }
-	    let data = response.data
-	    if (typeof data === 'string') {
-	      try { data = JSON.parse(data) } catch(e) { $print("PanCheck JSON解析失败"); return cards; }
-	    }
-	    if (data && Array.isArray(data.valid_links)) {
-	      const validSet = new Set(data.valid_links)
-	      const validCards = cards.filter(card => validSet.has(card.vod_id))
-	      $print(`检测完成，原始: ${cards.length}, 有效: ${validCards.length}`)
-	      // 容错：如果过滤后没有结果，但原始有结果，返回原始列表
-	      if (validCards.length === 0 && cards.length > 0) {
-	        $print("警告：所有链接似乎均已失效，为保留搜索结果，返回原始列表。")
-	        return cards
-	      }
-	      return validCards
-	    } else {
-	      $print(`PanCheck 响应格式异常: ${JSON.stringify(data)}`)
-	      return cards
-	    }
-	  } catch (error) {
-	    $print(`PanCheck 请求异常: ${error.message}`)
-	    return cards
-	  }
 	}
 	// ================= 接口实现 =================
 	async function getConfig() {
@@ -234,9 +191,9 @@
 	        let rows = mergedData[backendKey]
 	        // 先按时间倒序排序（确保优先显示最新资源）
 	        rows.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())
-	        // 【核心修改】：限制每个网盘最多返回 10 个结果
-	        if (rows.length > 10) {
-	          rows = rows.slice(0, 10)
+	        // 限制每个网盘最多返回 15 个结果
+	        if (rows.length > 15) {
+	          rows = rows.slice(0, 15)
 	        }
 	        rows.forEach(row => {
 	          const source = (row.source || '').replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:')
@@ -251,15 +208,6 @@
 	          })
 	        })
 	      }
-	      // ================== 调用网盘链接检测系统 ==================
-	      if (cards.length > 0) {
-	        try {
-	            cards = await filterValidLinks(cards)
-	        } catch (e) {
-	            $print(`filterValidLinks 发生未捕获异常: ${e.message}`)
-	        }
-	      }
-	      // ==========================================================
 	      const userPriority = $config?.pan_priority || []
 	      const priorityMap = {}
 	      let fallbackIndex = userPriority.length
