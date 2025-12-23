@@ -15,10 +15,6 @@
 	//   "ali": true,
 	//   "pan_priority": ["ali", "quark", "uc", "pikpak", "xunlei", "a123", "a189", "a139", "a115", "baidu"]
 	// }
-// pansou_urls: 盘搜API地址，支持多个，用逗号(,)或换行分隔，例如 "https://pansou1.com,https://pansou2.com" 或 "https://pansou1.com\nhttps://pansou2.com"。系统会自动轮询检测，优先使用响应最快的节点。
-// pansou_token: 如果该实例启用了认证，请填入JWT Token，否则留空
-// quark,uc,pikpak,xunlei,a123,a189,a139,a115,baidu,ali: 布尔值，true表示启用该网盘，false表示禁用。结果中不会显示被禁用的网盘。
-// pan_priority: 数组，定义网盘的优先级顺序，越靠前优先级越高。例如 ["ali","quark","uc"] 表示阿里云盘优先级最高，其次是夸克，然后是UC。未在此数组中的网盘将排在最后，顺序按配置顺序。
 	// XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
 	const $config = argsify($config_str)
 	// ================= 工具函数 =================
@@ -104,22 +100,24 @@
 	    try {
 	      const start = Date.now()
 	      const testUrl = `${url}/api/search`
+	      // 移除 timeout 选项以兼容性更好，使用系统默认超时
 	      const response = await $fetch.post(testUrl, { kw: "", limit: 1 }, { 
-	        headers: { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) },
-	        timeout: 3000 
+	        headers: { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) }
 	      })
 	      const latency = Date.now() - start
-	      if (response.status >= 200 && response.status < 300) {
+	      if (response && response.status >= 200 && response.status < 300) {
 	        return { url, latency }
 	      }
-	    } catch (e) {}
+	    } catch (e) {
+	      $print(`API检测异常: ${url} - ${e.message}`)
+	    }
 	    return null
 	  })
 	  const results = await Promise.all(tasks)
 	  const validResults = results.filter(r => r !== null).sort((a, b) => a.latency - b.latency)
 	  if (validResults.length > 0) {
 	    cachedApiUrl = validResults[0].url
-	    console.log(`PanSou API selected: ${cachedApiUrl} (${validResults[0].latency}ms)`)
+	    $print(`PanSou API selected: ${cachedApiUrl} (${validResults[0].latency}ms)`)
 	    return cachedApiUrl
 	  }
 	  return null
@@ -145,53 +143,60 @@
 	  if (!ca && cb) return 1
 	  return b.datetime - a.datetime
 	}
-	// ================= 网盘链接检测系统集成 (更新版) =================
+	// ================= 网盘链接检测系统集成 (修复版) =================
 	/**
 	 * 使用 PanCheck API 过滤有效链接
-	 * 接口文档: POST /api/v1/links/check
-	 * 请求体: { "links": ["url1", "url2"], "selectedPlatforms": [...] }
-	 * 响应体: { "valid_links": [...], "invalid_links": [...] }
+	 * 逻辑修改：如果检测失败或返回结果为空（全部失效），
+	 * 为了防止搜索无结果，默认返回原始列表。
 	 */
 	async function filterValidLinks(cards) {
 	  // 如果未配置检测地址或卡片列表为空，直接返回原列表
 	  if (!PANCHECK_URL || cards.length === 0) {
 	    return cards
 	  }
-	  console.log(`开始网盘有效性检测，数量: ${cards.length}`)
+	  $print(`开始网盘有效性检测，数量: ${cards.length}`)
 	  // 提取所有待检测的链接
 	  const linksToCheck = cards.map(card => card.vod_id)
 	  try {
 	    // 构造请求参数
-	    // 注意：这里不传 selectedPlatforms，让后端自动识别，兼容性更好
 	    const requestBody = {
 	      links: linksToCheck
 	    }
-	    // 发送请求，超时时间设置为15秒，因为批量检测可能需要较长时间
+	    // 发送请求
+	    // 移除 timeout，防止在某些环境下不支持而导致请求错误
 	    const response = await $fetch.post(PANCHECK_URL, requestBody, { 
-	      timeout: 15000,
 	      headers: { 'Content-Type': 'application/json' }
 	    })
+	    // 检查响应是否存在
+	    if (!response) {
+	      $print("PanCheck 响应为空，检测失败")
+	      return cards
+	    }
 	    // 解析响应
 	    let data = response.data
 	    if (typeof data === 'string') {
-	      try { data = JSON.parse(data) } catch(e) {}
+	      try { data = JSON.parse(data) } catch(e) { $print("PanCheck JSON解析失败"); return cards; }
 	    }
 	    // 验证响应格式并筛选有效链接
 	    if (data && Array.isArray(data.valid_links)) {
 	      const validSet = new Set(data.valid_links)
 	      const validCards = cards.filter(card => validSet.has(card.vod_id))
-	      console.log(`检测完成，有效: ${validCards.length}/${cards.length}`)
-	      // 可选：如果用户只想看有效链接，直接返回 validCards
-	      // 如果想保留所有链接但在备注中标记，可以在这里修改 card.vod_remarks
+	      $print(`检测完成，原始: ${cards.length}, 有效: ${validCards.length}`)
+	      // 【关键修复】：如果过滤后没有有效链接，但原始列表有数据
+	      // 为了防止用户看到空列表，这里返回原始列表（容错处理）
+	      // 如果需要严格模式（只显示有效），请去掉此 if 判断
+	      if (validCards.length === 0 && cards.length > 0) {
+	        $print("警告：所有链接似乎均已失效，为保留搜索结果，返回原始列表。")
+	        return cards
+	      }
 	      return validCards
 	    } else {
-	      console.warn(`PanCheck 响应格式异常: ${JSON.stringify(data)}`)
-	      // 检测失败时，为了用户体验，返回原数据（可根据需求改为返回空）
+	      $print(`PanCheck 响应格式异常: ${JSON.stringify(data)}`)
 	      return cards
 	    }
 	  } catch (error) {
-	    console.error(`PanCheck 请求失败: ${error.message}`)
-	    // 发生错误（如网络超时、服务不可用），返回原数据
+	    $print(`PanCheck 请求异常: ${error.message}`)
+	    // 发生错误（如网络超时、服务不可用），返回原数据，确保有结果显示
 	    return cards
 	  }
 	}
@@ -258,8 +263,12 @@
 	      }
 	      // ================== 调用网盘链接检测系统 ==================
 	      if (cards.length > 0) {
-	        // 对搜索结果进行有效性过滤，仅保留有效链接
-	        cards = await filterValidLinks(cards)
+	        try {
+	            cards = await filterValidLinks(cards)
+	        } catch (e) {
+	            $print(`filterValidLinks 发生未捕获异常: ${e.message}`)
+	            // 异常情况下保持 cards 不变
+	        }
 	      }
 	      // ==========================================================
 	      const userPriority = $config?.pan_priority || []
