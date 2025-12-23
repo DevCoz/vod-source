@@ -80,50 +80,7 @@
 	  '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
 	  baidu: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
 	}
-	let cachedApiUrl = null
 	// ================= 核心逻辑 =================
-	// 缓存优化：预先计算的大写关键词
-	const QUALITY_KEYWORDS_UPPER = QUALITY_KEYWORDS.map(kw => kw.toUpperCase())
-	const COMPLETED_KEYWORDS_UPPER = COMPLETED_KEYWORDS.map(kw => kw.toUpperCase())
-	// 缓存优化：预先构建后端到前端的映射
-	const BACKEND_TO_FRONT_MAP = {}
-	Object.entries(PAN_TYPES_MAP).forEach(([frontKey, config]) => {
-	  BACKEND_TO_FRONT_MAP[config.backend_key] = frontKey
-	})
-	// 缓存优化：源字符串替换映射
-	const SOURCE_REPLACE_MAP = {
-	  'plugin:': '插件:',
-	  'tg:': '频道:'
-	}
-	async function getAvailableAPI() {
-	  if (cachedApiUrl) return cachedApiUrl
-	  if (PAN_URLS.length === 0) return null
-	  const tasks = PAN_URLS.map(async (url) => {
-	    try {
-	      const start = Date.now()
-	      const healthUrl = `${url}/api/health`
-	      const headers = { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) }
-	      const response = await $fetch.get(healthUrl, { headers, timeout: 3000 })
-	      const latency = Date.now() - start
-	      let isValid = response.status >= 200 && response.status < 300
-	      if (isValid && response.data) {
-	        const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data
-	        if (data.status !== 'ok') isValid = false
-	      }
-	      if (isValid) {
-	        return { url, latency }
-	      }
-	    } catch (e) {}
-	    return null
-	  })
-	  const results = await Promise.all(tasks)
-	  const validResults = results.filter(r => r !== null).sort((a, b) => a.latency - b.latency)
-	  if (validResults.length > 0) {
-	    cachedApiUrl = validResults[0].url
-	    return cachedApiUrl
-	  }
-	  return null
-	}
 	function getCardScore(name) {
 	  let score = 0
 	  const upper = name.toUpperCase()
@@ -156,20 +113,6 @@
 	    }]
 	  })
 	}
-	// 计算卡片质量的评分（用于缓存）
-	function calculateQualityScore(vodNameUpper) {
-	  let score = 0
-	  for (const kw of QUALITY_KEYWORDS_UPPER) {
-	    if (vodNameUpper.includes(kw)) {
-	      score += 10
-	    }
-	  }
-	  return score
-	}
-	// 判断是否为完结状态（用于缓存）
-	function isCompletedStatus(vodNameUpper) {
-	  return COMPLETED_KEYWORDS_UPPER.some(kw => vodNameUpper.includes(kw))
-	}
 	async function getCards(ext) {
 	  ext = argsify(ext)
 	  let searchText = ext.search_text || ext.text || ext.query || ""
@@ -177,17 +120,19 @@
 	    $utils.toastError("请输入关键词开始搜索")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
-	  const apiUrl = await getAvailableAPI()
-	  if (!apiUrl) {
-	    $utils.toastError("所有配置的 API 地址均不可用")
-	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
-	  }
-	  // 性能优化：使用filter+map链式调用，减少中间数组
+	  const page = parseInt(ext.page) || 1
+	  // 获取启用的网盘类型
 	  const enabledCloudTypes = Object.entries(PAN_TYPES_MAP)
 	    .filter(([_, config]) => config.enabled)
 	    .map(([_, config]) => config.backend_key)
 	  if (enabledCloudTypes.length === 0) {
 	    $utils.toastError("未启用任何网盘类型")
+	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
+	  }
+	  // 直接使用第一个配置的API URL
+	  const apiUrl = PAN_URLS[0]
+	  if (!apiUrl) {
+	    $utils.toastError("未配置 API 地址")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
 	  const requestBody = {
@@ -203,12 +148,12 @@
 	    if (typeof data === 'string') data = JSON.parse(data)
 	    const mergedData = data?.merged_by_type || data?.data?.merged_by_type
 	    if (mergedData) {
-	      // 性能优化：一次性收集所有类型数据
 	      const allTypeResults = []
 	      for (const [backendKey, typeResults] of Object.entries(mergedData)) {
-	        const frontKey = BACKEND_TO_FRONT_MAP[backendKey] || backendKey
+	        // 动态查找对应的前端key
+	        const panConfig = Object.values(PAN_TYPES_MAP).find(cfg => cfg.backend_key === backendKey)
+	        const frontKey = panConfig ? Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === panConfig) : backendKey
 	        const pic = PAN_PIC_MAP[backendKey] || ''
-	        // 原地排序，避免创建新数组
 	        typeResults.sort((a, b) => {
 	          const timeA = new Date(a.datetime).getTime() || 0
 	          const timeB = new Date(b.datetime).getTime() || 0
@@ -216,27 +161,27 @@
 	        })
 	        allTypeResults.push({ frontKey, pic, typeResults })
 	      }
-	      // 性能保护：限制总卡片数
 	      const maxTotalCards = 1000
-	      // 性能优化：使用单次循环构建cards，减少循环次数
 	      let cards = []
 	      let totalCards = 0
 	      for (const { frontKey, pic, typeResults } of allTypeResults) {
 	        for (const row of typeResults) {
-	          // 提前终止，避免处理过多数据
 	          if (totalCards >= maxTotalCards) break
 	          totalCards++
-	          // 性能优化：使用正则一次替换，替代多次replace调用
+	          // 动态替换source字符串
 	          let source = row.source || ''
-	          for (const [from, to] of Object.entries(SOURCE_REPLACE_MAP)) {
-	            source = source.replace(new RegExp(from, 'gi'), to)
-	          }
-	          // 性能优化：预计算评分和时间戳，避免重复计算
+	          source = source.replace(/plugin:/gi, '插件:').replace(/tg:/gi, '频道:')
 	          const vodName = row.note || '未命名资源'
-	          const vodNameUpper = vodName.toUpperCase()
 	          const datetime = new Date(row.datetime).getTime() || 0
-	          const qualityScore = calculateQualityScore(vodNameUpper)
-	          const isCompleted = isCompletedStatus(vodNameUpper)
+	          // 动态计算评分和状态
+	          let qualityScore = 0
+	          const vodNameUpper = vodName.toUpperCase()
+	          QUALITY_KEYWORDS.forEach(kw => {
+	            if (vodNameUpper.includes(kw.toUpperCase())) {
+	              qualityScore += 10
+	            }
+	          })
+	          const isCompleted = COMPLETED_KEYWORDS.some(kw => vodNameUpper.includes(kw))
 	          cards.push({
 	            vod_id: row.url,
 	            vod_name: vodName,
@@ -245,14 +190,13 @@
 	            datetime: datetime,
 	            pan: frontKey,
 	            ext: jsonify({ panSouResult: row, searchText }),
-	            // 缓存评分和状态，避免排序时重复计算
 	            _qualityScore: qualityScore,
 	            _isCompleted: isCompleted
 	          })
 	        }
 	        if (totalCards >= maxTotalCards) break
 	      }
-	      // 性能优化：构建优先级映射，使用Object.fromEntries简化
+	      // 构建优先级映射
 	      const userPriority = $config?.pan_priority || []
 	      const enabledKeys = new Set(Object.keys(PAN_TYPES_MAP))
 	      const priorityMap = Object.fromEntries(
@@ -260,7 +204,6 @@
 	          .filter(key => enabledKeys.has(key))
 	          .map((key, idx) => [key, idx])
 	      )
-	      // 为未配置优先级的类型分配优先级
 	      const fallbackIndex = userPriority.length
 	      const currentPriorityCount = Object.keys(priorityMap).length
 	      for (const key of Object.keys(PAN_TYPES_MAP)) {
@@ -268,7 +211,6 @@
 	          priorityMap[key] = fallbackIndex + currentPriorityCount
 	        }
 	      }
-	      // 性能优化：使用缓存值进行排序，避免重复计算
 	      cards.sort((a, b) => {
 	        const pa = priorityMap[a.pan] ?? 999
 	        const pb = priorityMap[b.pan] ?? 999
@@ -282,14 +224,11 @@
 	        if (!ca && cb) return 1
 	        return b.datetime - a.datetime
 	      })
-	      // 性能优化：清理缓存字段，减少数据传输量
 	      cards.forEach(card => {
 	        delete card._qualityScore
 	        delete card._isCompleted
 	      })
-	      // 内存分页
 	      const pageSize = 20
-	      const page = parseInt(ext.page) || 1
 	      const total = cards.length
 	      const pagecount = Math.ceil(total / pageSize) || 1
 	      const start = (page - 1) * pageSize
