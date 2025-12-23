@@ -14,7 +14,6 @@
 	//   "ali": true,
 	//   "pan_priority": ["ali", "quark", "uc", "pikpak", "xunlei", "a123", "a189", "a139", "a115", "baidu"]
 	// }
-	// XPTV 要求所有入参与出参都是字符串，因此 getConfig, getCards, getTracks, getPlayinfo, search 的 ext 参数是字符串，返回值也必须是字符串。
 	const $config = argsify($config_str)
 	// ================= 工具函数 =================
 	function jsonify(obj) {
@@ -48,15 +47,12 @@
 	  return '未知'
 	}
 	// ================= 常量与配置 =================
-	// 优先级关键词
 	const QUALITY_KEYWORDS = ['HDR', '杜比', 'DV', 'REMUX', 'HQ', '臻彩', '高码', '高画质', '60FPS', '60帧', '高帧率', '60HZ', '4K', '2160P']
 	const COMPLETED_KEYWORDS = ['完结', '全集', '已完成', '全']
-	// 公共请求头
 	const BASE_HEADERS = {
 	  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
 	  'Content-Type': 'application/json',
 	}
-	// 解析 API 地址列表
 	const PAN_URLS_RAW = $config?.pansou_urls || ""
 	const PAN_URLS = PAN_URLS_RAW.split(/[\n,]/).map(url => url.trim()).filter(url => url !== '')
 	const PAN_TOKEN = $config?.pansou_token || ""
@@ -73,7 +69,6 @@
 	  baidu: { enabled: $config?.baidu !== false, backend_key: "baidu" },
 	  ali: { enabled: $config?.ali !== false, backend_key: "aliyun" }
 	}
-	// 网盘图标映射
 	const PAN_PIC_MAP = {
 	  aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
 	  quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
@@ -86,22 +81,23 @@
 	  '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
 	  baidu: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
 	}
-	// 缓存可用的 API 地址
 	let cachedApiUrl = null
 	// ================= 核心逻辑 =================
-	// 获取可用的 API 地址 (带缓存)
+	// 优化：使用 /api/health 接口检测服务状态，避免使用搜索接口产生无效请求和消耗
 	async function getAvailableAPI() {
 	  if (cachedApiUrl) return cachedApiUrl
 	  if (PAN_URLS.length === 0) return null
 	  const tasks = PAN_URLS.map(async (url) => {
 	    try {
 	      const start = Date.now()
-	      const testUrl = `${url}/api/search`
-	      const response = await $fetch.post(testUrl, { kw: "", limit: 1 }, { 
-	        headers: { ...BASE_HEADERS, ...(PAN_TOKEN ? {'Authorization': `Bearer ${PAN_TOKEN}`} : {}) }
-	      })
+	      // 使用健康检查接口，该接口通常不需要认证且响应极快
+	      const testUrl = `${url}/api/health`
+	      // 健康检查接口不需要 Authorization（参考 README），添加也无妨
+	      const headers = { ...BASE_HEADERS } 
+	      const response = await $fetch.get(testUrl, { headers: headers, timeout: 5000 })
 	      const latency = Date.now() - start
-	      if (response && response.status >= 200 && response.status < 300) {
+	      // 检查返回状态是否为 "ok"
+	      if (response && response.data && response.data.status === 'ok') {
 	        return { url, latency }
 	      }
 	    } catch (e) {
@@ -166,12 +162,13 @@
 	    $utils.toastError("未启用任何网盘类型")
 	    return jsonify({ list: [], page: 1, pagecount: 1, total: 0 })
 	  }
+	  // 优化：根据 README 文档，请求体仅包含支持的参数
 	  const requestBody = {
 	    kw: searchText,
 	    filter: { include: QUALITY_KEYWORDS, exclude: ["枪版", "预告", "彩蛋"] },
-	    cloud_types: enabledCloudTypes,
-	    limit: 100, 
-	    page: 1
+	    cloud_types: enabledCloudTypes
+	    // 移除 limit 和 page，因为 README 中 /api/search POST 未列出这些参数，
+	    // 结果在 merged_by_type 中返回，由客户端进行切片和分页处理更为准确
 	  }
 	  const headers = { ...BASE_HEADERS }
 	  if (PAN_TOKEN) headers['Authorization'] = `Bearer ${PAN_TOKEN}`
@@ -179,19 +176,18 @@
 	    const response = await $fetch.post(`${apiUrl}/api/search`, requestBody, { headers: headers })
 	    let data = response.data
 	    if (typeof data === 'string') data = JSON.parse(data)
-	    if (data?.code === 0 && data?.data?.merged_by_type) {
+	    // 兼容处理：检查 code 是否为 0 (常见于此类 API 封装)，直接检查 merged_by_type 也可以
+	    if ((data?.code === 0 || !data?.code) && data?.data?.merged_by_type) {
 	      let cards = []
 	      const mergedData = data.data.merged_by_type
-	      // 遍历每个网盘类型
 	      for (const backendKey in mergedData) {
 	        const panConfig = Object.values(PAN_TYPES_MAP).find(cfg => cfg.backend_key === backendKey)
 	        const frontKey = panConfig ? Object.keys(PAN_TYPES_MAP).find(k => PAN_TYPES_MAP[k] === panConfig) : backendKey
 	        const pic = PAN_PIC_MAP[backendKey] || ''
-	        // 获取该网盘类型的原始数据列表
 	        let rows = mergedData[backendKey]
-	        // 先按时间倒序排序（确保优先显示最新资源）
+	        // 按时间倒序排序
 	        rows.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())
-	        // 限制每个网盘最多返回 15 个结果
+	        // 限制每个网盘最多返回 15 个结果 (客户端切片)
 	        if (rows.length > 15) {
 	          rows = rows.slice(0, 15)
 	        }
@@ -208,6 +204,7 @@
 	          })
 	        })
 	      }
+	      // 排序逻辑
 	      const userPriority = $config?.pan_priority || []
 	      const priorityMap = {}
 	      let fallbackIndex = userPriority.length
@@ -218,6 +215,7 @@
 	        if (priorityMap[key] === undefined) priorityMap[key] = fallbackIndex++
 	      })
 	      cards.sort((a, b) => sortCardsFunc(a, b, priorityMap))
+	      // 客户端分页
 	      const pageSize = 20
 	      const page = parseInt(ext.page) || 1
 	      const total = cards.length
