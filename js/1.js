@@ -151,6 +151,8 @@ async function getCards(ext) {
 async function getTracks(ext) {
     ext = argsify(ext);
     let results = [];
+    
+    // 1. 获取基础资源列表
     if (ext.is_recommend) {
         $utils.toastInfo(`正在搜索并检测: ${ext.kw}`);
         results = await performSearch(ext.kw);
@@ -158,52 +160,57 @@ async function getTracks(ext) {
         results = [ext];
     }
 
+    // 2. 准备检测链接
     const allUrls = results.map(r => r.url || r.vod_id).filter(u => u);
     
-    // --- 修复后的检测逻辑 ---
     let checkResult = { valid: [], invalid: [], pending: [] };
+    
+    // 3. 请求 PanCheck 接口
     if (PANCHECK_URL && allUrls.length > 0) {
         try {
             const res = await $fetch.post(`${PANCHECK_URL}/api/v1/links/check`, {
                 links: allUrls,
-                // 指定平台提高准确率
-                selectedPlatforms: ["quark", "aliyun", "baidu", "uc", "tianyi"] 
+                // 根据 README 文档，selectedPlatforms 为可选
+                selectedPlatforms: ["quark", "uc", "baidu", "tianyi", "aliyun"] 
             }, { timeout: 15000 });
             
             const data = argsify(res.data);
+            // 确保正确读取有效和失效列表
             checkResult.valid = data.valid_links || [];
             checkResult.invalid = data.invalid_links || [];
-            checkResult.pending = data.pending_links || []; // 处理待检测状态
+            checkResult.pending = data.pending_links || [];
         } catch (e) {
-            $print(`PanCheck 请求失败: ${e.message}`);
+            $print(`PanCheck 接口调用失败: ${e.message}`);
         }
     }
 
+    // 辅助函数：标准化链接以进行高精度匹配
+    const normalize = (url) => url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+
     return jsonify({
         list: [{
-            title: PANCHECK_URL ? 'PanCheck 实时检测' : '资源详情',
+            title: PANCHECK_URL ? 'PanCheck 实时检测结果' : '资源详情',
             tracks: results.map(item => {
-                const url = item.url || item.vod_id;
+                const rawUrl = item.url || item.vod_id;
+                const normUrl = normalize(rawUrl);
                 
-                // 使用模糊匹配，防止因为 url 编码或末尾斜杠导致匹配失败
-                const checkStatus = (linkArr) => linkArr.some(l => l.includes(url) || url.includes(l));
-                
-                const isValid = checkStatus(checkResult.valid);
-                const isInvalid = checkStatus(checkResult.invalid);
-                const isPending = checkStatus(checkResult.pending);
+                // 执行匹配：检查标准化后的链接是否存在于结果数组中
+                const isValid = checkResult.valid.some(l => normalize(l) === normUrl);
+                const isInvalid = checkResult.invalid.some(l => normalize(l) === normUrl);
+                const isPending = checkResult.pending.some(l => normalize(l) === normUrl);
                 
                 let statusPrefix = "";
                 if (PANCHECK_URL) {
                     if (isValid) statusPrefix = "✅ ";
-                    else if (isInvalid) statusPrefix = "❌ [已失效] ";
-                    else if (isPending) statusPrefix = "⏳ [检测中] ";
-                    else statusPrefix = "❓ [未知] "; // 如果 PanCheck 没返回该链接的状态
+                    else if (isInvalid) statusPrefix = "❌ [失效] ";
+                    else if (isPending) statusPrefix = "⏳ [排队中] ";
+                    else statusPrefix = "❓ [未识别] "; 
                 }
 
                 return {
                     name: `${statusPrefix}${item.title || item.vod_name}${item.pwd ? ' [码：' + item.pwd + ']' : ''}`,
-                    pan: url,
-                    ext: { url }
+                    pan: rawUrl,
+                    ext: { url: rawUrl }
                 };
             })
         }]
