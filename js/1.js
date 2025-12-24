@@ -150,7 +150,6 @@ async function getCards(ext) {
  */
 async function getTracks(ext) {
     ext = argsify(ext);
-    
     let results = [];
     if (ext.is_recommend) {
         $utils.toastInfo(`正在搜索并检测: ${ext.kw}`);
@@ -159,22 +158,46 @@ async function getTracks(ext) {
         results = [ext];
     }
 
-    // 执行 PanCheck 检测
     const allUrls = results.map(r => r.url || r.vod_id).filter(u => u);
-    const checkResult = await (PANCHECK_URL ? checkLinks(allUrls) : Promise.resolve({ valid: allUrls, invalid: [] }));
+    
+    // --- 修复后的检测逻辑 ---
+    let checkResult = { valid: [], invalid: [], pending: [] };
+    if (PANCHECK_URL && allUrls.length > 0) {
+        try {
+            const res = await $fetch.post(`${PANCHECK_URL}/api/v1/links/check`, {
+                links: allUrls,
+                // 指定平台提高准确率
+                selectedPlatforms: ["quark", "aliyun", "baidu", "uc", "tianyi"] 
+            }, { timeout: 15000 });
+            
+            const data = argsify(res.data);
+            checkResult.valid = data.valid_links || [];
+            checkResult.invalid = data.invalid_links || [];
+            checkResult.pending = data.pending_links || []; // 处理待检测状态
+        } catch (e) {
+            $print(`PanCheck 请求失败: ${e.message}`);
+        }
+    }
 
     return jsonify({
         list: [{
-            title: PANCHECK_URL ? 'PanCheck 实时检测结果' : '资源详情',
+            title: PANCHECK_URL ? 'PanCheck 实时检测' : '资源详情',
             tracks: results.map(item => {
                 const url = item.url || item.vod_id;
-                const isValid = checkResult.valid.includes(url);
-                const isInvalid = checkResult.invalid.includes(url);
                 
-                // 状态图标化反馈
+                // 使用模糊匹配，防止因为 url 编码或末尾斜杠导致匹配失败
+                const checkStatus = (linkArr) => linkArr.some(l => l.includes(url) || url.includes(l));
+                
+                const isValid = checkStatus(checkResult.valid);
+                const isInvalid = checkStatus(checkResult.invalid);
+                const isPending = checkStatus(checkResult.pending);
+                
                 let statusPrefix = "";
                 if (PANCHECK_URL) {
-                    statusPrefix = isValid ? "✅ " : (isInvalid ? "❌ [已失效] " : "❓ ");
+                    if (isValid) statusPrefix = "✅ ";
+                    else if (isInvalid) statusPrefix = "❌ [已失效] ";
+                    else if (isPending) statusPrefix = "⏳ [检测中] ";
+                    else statusPrefix = "❓ [未知] "; // 如果 PanCheck 没返回该链接的状态
                 }
 
                 return {
@@ -186,6 +209,5 @@ async function getTracks(ext) {
         }]
     });
 }
-
 async function getPlayinfo() { return jsonify({ urls: [] }); }
 async function search(ext) { return getCards(ext); }
