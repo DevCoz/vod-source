@@ -1,8 +1,8 @@
 // ================= 自定义配置格式 =================
 // {
-//   "pansou_urls": "https://api1.example.com",
-//   "pansou_token": "",
-//   "pancheck_url": "http://your-pancheck-ip:8080", // 新增：PanCheck服务地址
+//   "pansou_urls": "https://api.your-pansou.com",
+//   "pansou_token": "your_jwt_token",
+//   "pancheck_url": "http://your-pancheck-ip:8080", 
 //   "quark": true,
 //   "ali": true,
 //   "pan_priority": ["quark", "ali"]
@@ -24,8 +24,8 @@ function formatDateTime(str) {
 
 // ================= 常量与配置 =================
 const HOT_KEYWORDS = [
-    { name: "🔥 热播电影", kw: "2024 电影 4K", pic: "https://img.icons8.com/clouds/200/movie-projector.png", remark: "实时检测链接有效性" },
-    { name: "📺 热门剧集", kw: "2024 电视剧 完结", pic: "https://img.icons8.com/clouds/200/tv-show.png", remark: "自动过滤失效资源" }
+    { name: "🔥 热播电影", kw: "2024 电影 4K", pic: "https://img.icons8.com/clouds/200/movie-projector.png", remark: "自动检测链接有效性" },
+    { name: "📺 热门剧集", kw: "2024 电视剧 完结", pic: "https://img.icons8.com/clouds/200/tv-show.png", remark: "实时过滤失效资源" }
 ];
 
 const PAN_PIC_MAP = {
@@ -37,7 +37,7 @@ const PAN_PIC_MAP = {
 
 const PAN_URLS = ($config?.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).filter(u => u);
 const PAN_TOKEN = $config?.pansou_token || "";
-const PANCHECK_URL = $config?.pancheck_url || ""; // PanCheck 接口地址
+const PANCHECK_URL = $config?.pancheck_url || ""; // PanCheck服务地址
 
 const TYPE_MAP = [
     { front: 'quark', back: 'quark' }, { front: 'ali', back: 'aliyun' },
@@ -47,18 +47,18 @@ const TYPE_MAP = [
 const ENABLED_BACKEND_TYPES = TYPE_MAP.filter(m => $config?.[m.front] !== false).map(m => m.back);
 const BACKEND_TO_FRONT = TYPE_MAP.reduce((acc, m) => ({ ...acc, [m.back]: m.front }), {});
 
-// ================= 核心逻辑：链接检测集成 =================
+// ================= 核心集成逻辑 =================
 
 /**
- * 调用 PanCheck 接口检测链接有效性
+ * 步骤 2: 调用 PanCheck 批量检测链接
  */
 async function checkLinks(links) {
     if (!PANCHECK_URL || !links || links.length === 0) return { valid: links, invalid: [] };
     
     try {
         const res = await $fetch.post(`${PANCHECK_URL}/api/v1/links/check`, {
-            links: links // 传入待检测的链接数组
-        }, { timeout: 10000 });
+            links: links // 传入从PanSou获取的链接数组
+        }, { timeout: 15000 });
         
         const data = argsify(res.data);
         return {
@@ -66,11 +66,14 @@ async function checkLinks(links) {
             invalid: data.invalid_links || []
         };
     } catch (e) {
-        $print(`PanCheck Error: ${e.message}`);
-        return { valid: links, invalid: [] }; // 出错时默认返回原始链接
+        $print(`PanCheck 检测失败: ${e.message}`);
+        return { valid: links, invalid: [] }; 
     }
 }
 
+/**
+ * 步骤 1: 调用 PanSou 搜索资源
+ */
 async function performSearch(query) {
     if (!PAN_URLS.length) return [];
     let apiUrl = PAN_URLS[0];
@@ -78,9 +81,12 @@ async function performSearch(query) {
     try {
         const res = await $fetch.post(`${apiUrl}/api/search`, {
             kw: query,
-            res: "merge",
+            res: "merge", // 使用聚合模式获取分类结果
             cloud_types: ENABLED_BACKEND_TYPES,
-            src: "all"
+            src: "all",
+            filter: { 
+                exclude: ["预告", "枪版", "广告"] // 原生过滤
+            }
         }, { 
             headers: { 
                 'Authorization': PAN_TOKEN ? `Bearer ${PAN_TOKEN}` : '', 
@@ -109,14 +115,14 @@ async function performSearch(query) {
     } catch (e) { return []; }
 }
 
-// ================= XPTV 接口 =================
+// ================= XPTV 接口实现 =================
 
 async function getConfig() {
     return jsonify({
         ver: 1,
-        title: "PanSou + PanCheck",
+        title: "PanSou+检测版",
         site: PAN_URLS[0] || "",
-        tabs: [{ name: '发现', ext: { id: 'home' } }]
+        tabs: [{ name: '网盘搜索', ext: { id: 'home' } }]
     });
 }
 
@@ -139,10 +145,12 @@ async function getCards(ext) {
     return jsonify({ list: results });
 }
 
+/**
+ * 步骤 3: 汇总 PanSou 结果并集成 PanCheck 状态返回 XPTV
+ */
 async function getTracks(ext) {
     ext = argsify(ext);
     
-    // 处理搜索结果
     let results = [];
     if (ext.is_recommend) {
         $utils.toastInfo(`正在搜索并检测: ${ext.kw}`);
@@ -151,22 +159,22 @@ async function getTracks(ext) {
         results = [ext];
     }
 
-    // --- 集成 PanCheck：批量检测当前页面的链接 ---
+    // 执行 PanCheck 检测
     const allUrls = results.map(r => r.url || r.vod_id).filter(u => u);
-    const checkResult = await checkLinks(allUrls);
+    const checkResult = await (PANCHECK_URL ? checkLinks(allUrls) : Promise.resolve({ valid: allUrls, invalid: [] }));
 
     return jsonify({
         list: [{
-            title: PANCHECK_URL ? '链接有效性检测结果' : '资源详情',
+            title: PANCHECK_URL ? 'PanCheck 实时检测结果' : '资源详情',
             tracks: results.map(item => {
                 const url = item.url || item.vod_id;
                 const isValid = checkResult.valid.includes(url);
                 const isInvalid = checkResult.invalid.includes(url);
                 
-                // 根据检测结果优化显示名称
+                // 状态图标化反馈
                 let statusPrefix = "";
                 if (PANCHECK_URL) {
-                    statusPrefix = isValid ? "✅ " : (isInvalid ? "❌ [失效] " : "❓ ");
+                    statusPrefix = isValid ? "✅ " : (isInvalid ? "❌ [已失效] " : "❓ ");
                 }
 
                 return {
