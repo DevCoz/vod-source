@@ -98,7 +98,7 @@ function sortResults(a, b, priorityMap) {
     const getScore = (name) => {
         let s = 0;
         if (/(4K|2160P|HDR|REMUX|杜比|DV)/i.test(name)) s += 50;
-        if (/(完结|全集|合集|Season|S0)/i.test(name)) s += 30;
+        if (/(完结|全集|合集)/i.test(name)) s += 30;
         return s;
     };
     
@@ -115,19 +115,7 @@ async function getConfig() {
         ver: 1,
         title: "PanSou 资源搜索",
         site: PAN_URLS[0] || "PanSou",
-        home: true, // 启用首页显示
-        home_content: [{ // 首页显示的内容
-            vod_id: "prompt",
-            vod_name: "输入关键词开始搜索",
-            vod_pic: "https://img.icons8.com/clouds/200/search.png",
-            vod_remarks: "🔍 支持电影、电视剧、综艺、动漫等资源搜索",
-            no_play: true // 标记为不可播放，仅作提示
-        }],
-        tabs: [{ 
-            name: '搜索', 
-            ext: jsonify({ id: 'search' }),
-            hint: "输入关键词开始搜索" // 搜索框提示文字
-        }]
+        tabs: [{ name: '搜索', ext: jsonify({ id: 'search' }) }]
     });
 }
 
