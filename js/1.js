@@ -152,7 +152,7 @@ async function getTracks(ext) {
     ext = argsify(ext);
     let results = [];
     
-    // 1. 获取基础资源列表
+    // 1. 获取资源列表
     if (ext.is_recommend) {
         $utils.toastInfo(`正在搜索并检测: ${ext.kw}`);
         results = await performSearch(ext.kw);
@@ -160,51 +160,66 @@ async function getTracks(ext) {
         results = [ext];
     }
 
-    // 2. 准备检测链接
     const allUrls = results.map(r => r.url || r.vod_id).filter(u => u);
     
+    // 2. 初始化检测结果容器
     let checkResult = { valid: [], invalid: [], pending: [] };
     
-    // 3. 请求 PanCheck 接口
+    // 3. 调用 PanCheck 接口
     if (PANCHECK_URL && allUrls.length > 0) {
         try {
             const res = await $fetch.post(`${PANCHECK_URL}/api/v1/links/check`, {
                 links: allUrls,
-                // 根据 README 文档，selectedPlatforms 为可选
-                selectedPlatforms: ["quark", "uc", "baidu", "tianyi", "aliyun"] 
+                // 根据文档，指定平台可提升检测速度
+                selectedPlatforms: ["quark", "uc", "baidu", "tianyi", "pan123", "pan115", "aliyun", "xunlei", "cmcc"]
             }, { timeout: 15000 });
             
             const data = argsify(res.data);
-            // 确保正确读取有效和失效列表
+            // 对应 PanCheck 响应字段
             checkResult.valid = data.valid_links || [];
             checkResult.invalid = data.invalid_links || [];
             checkResult.pending = data.pending_links || [];
         } catch (e) {
-            $print(`PanCheck 接口调用失败: ${e.message}`);
+            $print(`PanCheck 调用异常: ${e.message}`);
         }
     }
 
-    // 辅助函数：标准化链接以进行高精度匹配
-    const normalize = (url) => url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+    /**
+     * 【核心修复】URL 标准化函数
+     * 作用：去除协议头、去除末尾斜杠、统一转小写，确保对比的一致性
+     */
+    const normalize = (url) => {
+        if (!url) return "";
+        return url.replace(/^https?:\/\//i, '') // 去掉 http:// 或 https://
+                  .replace(/\/+$/, '')         // 去掉末尾的一个或多个 /
+                  .toLowerCase()               // 统一转小写
+                  .trim();                     // 去掉空格
+    };
 
     return jsonify({
         list: [{
-            title: PANCHECK_URL ? 'PanCheck 实时检测结果' : '资源详情',
+            title: PANCHECK_URL ? 'PanCheck 实时检测' : '资源详情',
             tracks: results.map(item => {
                 const rawUrl = item.url || item.vod_id;
                 const normUrl = normalize(rawUrl);
                 
-                // 执行匹配：检查标准化后的链接是否存在于结果数组中
+                // 使用标准化后的 URL 在结果数组中进行“模糊”匹配
                 const isValid = checkResult.valid.some(l => normalize(l) === normUrl);
                 const isInvalid = checkResult.invalid.some(l => normalize(l) === normUrl);
                 const isPending = checkResult.pending.some(l => normalize(l) === normUrl);
                 
                 let statusPrefix = "";
                 if (PANCHECK_URL) {
-                    if (isValid) statusPrefix = "✅ ";
-                    else if (isInvalid) statusPrefix = "❌ [失效] ";
-                    else if (isPending) statusPrefix = "⏳ [排队中] ";
-                    else statusPrefix = "❓ [未识别] "; 
+                    if (isValid) {
+                        statusPrefix = "✅ ";
+                    } else if (isInvalid) {
+                        statusPrefix = "❌ [已失效] ";
+                    } else if (isPending) {
+                        statusPrefix = "⏳ [排队中] ";
+                    } else {
+                        // 匹配失败后的保底状态
+                        statusPrefix = "❓ [未识别] "; 
+                    }
                 }
 
                 return {
