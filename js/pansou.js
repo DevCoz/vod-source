@@ -15,6 +15,20 @@
 //   "pan_priority": ["quark", "uc", "ali", "a189", "pikpak", "xunlei", "a123", "a139", "a115", "baidu"]
 // }
 
+// ================= 用户配置 =================
+// 建议在 TVBox/xptv 配置中传入 ext 字符串，此处作为默认回退
+const DEFAULT_CONFIG = {
+    // API地址列表，支持多个负载均衡
+    pansou_urls: "https://api.pan-sou.com,https://备用API.com",
+    pansou_token: "", // 认证Token，如启用 Auth 则必填
+    // 网盘开关
+    quark: true, uc: true, pikpak: false, xunlei: false,
+    a123: false, a189: true, a139: false, a115: true, baidu: false, ali: true,
+    // 排序优先级 (索引越小优先级越高)
+    pan_priority: ["quark", "uc", "ali", "a189", "pikpak", "xunlei", "a123", "a139", "a115", "baidu"]
+}
+
+// 解析配置
 const $config = (() => {
     try {
         const uConf = argsify($config_str);
