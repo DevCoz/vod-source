@@ -123,16 +123,9 @@ async function getCards(ext) {
     ext = argsify(ext);
     const kw = ext.search_text || ext.text || "";
     if (!kw) {
-        return jsonify({
-            list: [{
-                vod_id: "prompt",
-                vod_name: "🔍 输入关键词开始搜索",
-                vod_pic: "https://img.icons8.com/clouds/200/tv-show.png",
-                vod_remarks: "提示：请输入影片名称、演员或类型进行搜索",
-                no_play: true // 标记为不可播放的提示项
-            }],
-            page: 1,
-            pagecount: 1
+        $utils.toastInfo("输入关键词开始搜索");
+        return jsonify({ 
+            list: [] 
         });
     }
 
