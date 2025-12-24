@@ -122,24 +122,10 @@ async function getConfig() {
 async function getCards(ext) {
     ext = argsify(ext);
     const kw = ext.search_text || ext.text || "";
-    
-    // ====== 新增：当没有关键词时显示提示卡片 ======
     if (!kw) {
-        return jsonify({
-            list: [{
-                vod_id: "search_prompt",
-                vod_name: "🔍 输入关键词开始搜索",
-                vod_pic: "https://img.icons8.com/clouds/200/search.png",
-                vod_remarks: "提示：请输入影片名称、演员或类型进行搜索",
-                vod_actor: "操作说明",
-                vod_director: "按确认键输入关键词",
-                vod_content: "支持搜索电影、电视剧、动漫、综艺等资源",
-                no_play: true, // 标记为不可播放
-                ext: jsonify({ is_prompt: true }) // 标记为提示卡片
-            }],
-            page: 1,
-            pagecount: 1,
-            total: 1
+        $utils.toastInfo("🔍 输入关键词开始搜索");
+        return jsonify({ 
+            list: [] 
         });
     }
 
