@@ -93,54 +93,54 @@ async function getConfig() {
     });
 }
 
-async function getCards(ext) {
-    ext = argsify(ext);
-    const kw = ext.search_text || ext.text || "";
-    
-    if (!kw) {
-        return jsonify({ 
-            list: [{
-                vod_id: 'tip',
-                vod_name: '输入关键词开始搜索',
-                vod_pic: 'https://img.icons8.com/clouds/200/search.png',
-                vod_remarks: '等待输入...'
-            }] 
-        });
-    }
-
-    const results = await performSearch(kw);
-    return jsonify({ list: results });
-}
-
 async function getTracks(ext) {
     ext = argsify(ext);
-    const rawUrl = ext.url || ext.vod_id;
+    let rawUrl = ext.url || ext.vod_id;
     if (!rawUrl || rawUrl === 'tip') return jsonify({ list: [] });
+
+    // --- 1. 链接预处理（清洗） ---
+    // 提取真正的 URL，防止带入干扰字符
+    const urlMatch = rawUrl.match(/https?:\/\/[^\s]+(?=\b|\/)/i);
+    const cleanUrl = urlMatch ? urlMatch[0] : rawUrl;
 
     let statusPrefix = "⏳ [未检测] ";
     
-    // --- 点击后单链检测逻辑 ---
+    // --- 2. 识别平台（辅助 PanCheck） ---
+    let platform = [];
+    if (cleanUrl.includes("quark.cn")) platform = ["quark"];
+    else if (cleanUrl.includes("aliyundrive.com") || cleanUrl.includes("alipan.com")) platform = ["aliyun"];
+    else if (cleanUrl.includes("pan.baidu.com")) platform = ["baidu"];
+    else if (cleanUrl.includes("uc.cn")) platform = ["uc"];
+    else if (cleanUrl.includes("189.cn")) platform = ["tianyi"];
+    else if (cleanUrl.includes("123pan.com")) platform = ["pan123"];
+    else if (cleanUrl.includes("115.com")) platform = ["pan115"];
+    else if (cleanUrl.includes("xunlei.com")) platform = ["xunlei"];
+
+    // --- 3. 调用 PanCheck ---
     if (PANCHECK_URL) {
         try {
-            $utils.toastInfo("正在检测链接...");
+            $utils.toastInfo("正在深度检测链接有效性...");
             const res = await $fetch.post(`${PANCHECK_URL}/api/v1/links/check`, {
-                links: [rawUrl]
+                links: [cleanUrl],
+                selectedPlatforms: platform.length > 0 ? platform : undefined
             }, { timeout: 15000 });
 
             const data = argsify(res.data);
             
-            // 只要返回的有效数组里有内容，即视为当前链接有效
+            // 只要返回的 valid_links 包含数据，则认为通过
             if (data.valid_links && data.valid_links.length > 0) {
                 statusPrefix = "✅ [有效] ";
             } else if (data.invalid_links && data.invalid_links.length > 0) {
-                statusPrefix = "❌ [失效] ";
+                statusPrefix = "❌ [已失效] ";
             } else if (data.pending_links && data.pending_links.length > 0) {
                 statusPrefix = "⏳ [排队中] ";
             } else {
-                statusPrefix = "❓ [暂不支持检测] ";
+                // 如果后端没返回结果，尝试从 URL 判断平台并提示
+                const pName = platform.length > 0 ? platform[0].toUpperCase() : "未知";
+                statusPrefix = `❓ [${pName}平台暂无法检测] `;
             }
         } catch (e) {
-            statusPrefix = "⚠️ [检测服务异常] ";
+            statusPrefix = "⚠️ [检测系统超时] ";
         }
     }
 
@@ -148,13 +148,12 @@ async function getTracks(ext) {
         list: [{
             title: '链接检测结果',
             tracks: [{
-                name: `${statusPrefix}${ext.title || '点此播放'}`,
-                pan: rawUrl,
-                ext: { url: rawUrl }
+                name: `${statusPrefix}${ext.title || '点击进入网盘'}`,
+                pan: cleanUrl,
+                ext: { url: cleanUrl }
             }]
         }]
     });
 }
-
 async function getPlayinfo() { return jsonify({ urls: [] }); }
 async function search(ext) { return getCards(ext); }
