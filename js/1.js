@@ -151,7 +151,7 @@ async function getCards(ext) {
 async function getTracks(ext) {
     ext = argsify(ext);
     
-    // 1. 处理搜索逻辑（点击推荐位卡片时）
+    // 1. 处理搜索逻辑（针对推荐卡片的点击）
     if (ext.is_recommend) {
         $utils.toastInfo(`正在搜索: ${ext.kw}`);
         const results = await performSearch(ext.kw);
@@ -161,56 +161,59 @@ async function getTracks(ext) {
                 tracks: results.map(item => ({
                     name: item.vod_name,
                     pan: item.vod_id,
-                    ext: item.ext // 携带 url 等信息供下次点击检测
+                    ext: item.ext 
                 }))
             }]
         });
     }
 
-    // 2. 处理单链接检测逻辑（点击具体某个网盘结果时）
+    // 2. 处理点击具体结果后的单链接检测
     const rawUrl = ext.url || ext.vod_id;
     if (!rawUrl) return jsonify({ list: [] });
 
-    let statusPrefix = "⏳ 正在检测链接... ";
-    let checkResult = { isValid: false, isInvalid: false, isPending: false };
-
-    // 调用 PanCheck 检测单个链接
+    let statusPrefix = "⏳ [未识别] ";
+    
     if (PANCHECK_URL) {
         try {
+            // 弹出提示，告知用户正在检测中
+            $utils.toastInfo("正在调用 PanCheck 检测链接...");
+            
             const res = await $fetch.post(`${PANCHECK_URL}/api/v1/links/check`, {
-                links: [rawUrl], // 仅检测当前这一个链接
-                selectedPlatforms: ["quark", "uc", "baidu", "tianyi", "pan123", "pan115", "aliyun", "xunlei", "cmcc"]
-            }, { timeout: 10000 });
+                links: [rawUrl]
+            }, { timeout: 20000 }); // 增加超时
 
             const data = argsify(res.data);
             
-            // URL 标准化匹配函数，确保比对准确
-            const normalize = (u) => u ? u.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase().trim() : "";
-            const normTarget = normalize(rawUrl);
+            // --- 鲁棒匹配算法：针对单链接检测优化 ---
+            
+            // 策略 A: 检查有效数组是否有值（因为我们只传了一个，有值即为它有效）
+            const hasValid = data.valid_links && data.valid_links.length > 0;
+            const hasInvalid = data.invalid_links && data.invalid_links.length > 0;
+            const hasPending = data.pending_links && data.pending_links.length > 0;
 
-            // 检查返回数组
-            checkResult.isValid = (data.valid_links || []).some(l => normalize(l) === normTarget);
-            checkResult.isInvalid = (data.invalid_links || []).some(l => normalize(l) === normTarget);
-            checkResult.isPending = (data.pending_links || []).some(l => normalize(l) === normTarget);
-
-            if (checkResult.isValid) statusPrefix = "✅ 链接有效 | ";
-            else if (checkResult.isInvalid) statusPrefix = "❌ 链接已失效 | ";
-            else if (checkResult.isPending) statusPrefix = "⏳ 检测排队中 | ";
-            else statusPrefix = "❓ 未能识别状态 | ";
+            if (hasValid) {
+                statusPrefix = "✅ [有效] ";
+            } else if (hasInvalid) {
+                statusPrefix = "❌ [失效] ";
+            } else if (hasPending) {
+                statusPrefix = "⏳ [排队检测中] ";
+            } else {
+                // 如果后端返回了 200，但数组都为空，可能是解析器不支持该平台
+                statusPrefix = "❓ [平台暂不支持] ";
+            }
 
         } catch (e) {
-            statusPrefix = "⚠️ 检测服务连接失败 | ";
+            $print(`检测失败详情: ${e.message}`);
+            statusPrefix = "⚠️ [检测超时/错误] ";
         }
-    } else {
-        statusPrefix = "ℹ️ 直接访问 | ";
     }
 
-    // 3. 返回最终可播放/跳转的轨道
+    // 3. 返回最终轨道
     return jsonify({
         list: [{
-            title: '资源校验结果',
+            title: '链接实时检测结果',
             tracks: [{
-                name: `${statusPrefix}${ext.title || '点此打开资源'}`,
+                name: `${statusPrefix}${ext.title || '点击打开网盘'}`,
                 pan: rawUrl,
                 ext: { url: rawUrl }
             }]
