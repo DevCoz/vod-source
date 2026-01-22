@@ -13,6 +13,7 @@ const $config = argsify($config_str);
 function argsify(str) { try { return str ? JSON.parse(str) : {} } catch (e) { return {} } }
 function jsonify(obj) { return JSON.stringify(obj) }
 
+// ================= 常量配置 =================
 const PAN_PIC_MAP = {
     aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
     quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
@@ -38,9 +39,19 @@ const PAN_URLS = ($config?.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).
 const ENABLED_TYPES = TYPE_MAP.filter(m => $config?.[m.front] !== false).map(m => m.back);
 const B2F = TYPE_MAP.reduce((acc, m) => ({ ...acc, [m.back]: m.front }), {});
 
+// ================= 核心逻辑 =================
+
 async function getAPI() {
     for (const url of PAN_URLS) {
-        try { if ((await $fetch.get(`${url}/api/health`, { timeout: 2000 })).status === 200) return url; } catch (e) {}
+        try { 
+            const res = await $fetch.get(`${url}/api/health`, { timeout: 2000 });
+            if (res.status === 200) {
+                $print(`[PanSou] API可用: ${url}`);
+                return url;
+            }
+        } catch (e) {
+            $print(`[PanSou] API连接失败: ${url}`);
+        }
     }
     return PAN_URLS[0];
 }
@@ -55,8 +66,14 @@ async function getConfig() {
 async function getCards(ext) {
     ext = argsify(ext);
     const kw = ext.search_text || ext.text || "";
+    if (!kw) return jsonify({ list: [] });
+
+    $print(`[PanSou] 开始搜索关键词: ${kw}`);
     const api = await getAPI();
-    if (!kw || !api) return jsonify({ list: [] });
+    if (!api) {
+        $print("[PanSou] 错误: 未配置或无可用API");
+        return jsonify({ list: [] });
+    }
 
     try {
         const res = await $fetch.post(`${api}/api/search`, {
@@ -83,15 +100,26 @@ async function getCards(ext) {
             }));
         });
 
+        // 排序逻辑
         list.sort((a, b) => (prio[a.fKey] ?? 99) - (prio[b.fKey] ?? 99) || b.ts - a.ts);
+        
+        $print(`[PanSou] 搜索完成，找到结果: ${list.length} 条`);
 
         const page = parseInt(ext.page) || 1;
-        return jsonify({ list: list.slice((page - 1) * 20, page * 20), page, pagecount: Math.ceil(list.length / 20) || 1 });
-    } catch (e) { return jsonify({ list: [] }); }
+        return jsonify({ 
+            list: list.slice((page - 1) * 20, page * 20), 
+            page, 
+            pagecount: Math.ceil(list.length / 20) || 1 
+        });
+    } catch (e) { 
+        $print(`[PanSou] 搜索请求异常: ${e.message}`);
+        return jsonify({ list: [] }); 
+    }
 }
 
 async function getTracks(ext) {
     const { url, pwd, title } = argsify(ext);
+    $print(`[PanSou] 解析链接: ${title}`);
     return jsonify({
         list: [{ title: '链接详情', tracks: [{ name: `${title}${pwd ? ' [' + pwd + ']' : ''}`, pan: url, ext: jsonify({ url }) }] }]
     });
