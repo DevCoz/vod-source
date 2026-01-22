@@ -1,8 +1,19 @@
+// ================= 自定义配置格式 =================
+// {
+//   "pansou_urls": "https://api1.example.com,https://api2.example.com",
+//   "pansou_token": "",
+//   "quark": true,
+//   "uc": true,
+//   "ali": true,
+//   "pan_priority": ["quark", "ali", "uc"]
+// }
+
 const $config = argsify($config_str);
 
 function argsify(str) { try { return str ? JSON.parse(str) : {} } catch (e) { return {} } }
 function jsonify(obj) { return JSON.stringify(obj) }
 
+// ================= 常量配置 =================
 const PAN_PIC_MAP = {
     aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
     quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
@@ -28,10 +39,13 @@ const PAN_URLS = ($config?.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).
 const ENABLED_TYPES = TYPE_MAP.filter(m => $config?.[m.front] !== false).map(m => m.back);
 const B2F = TYPE_MAP.reduce((acc, m) => ({ ...acc, [m.back]: m.front }), {});
 
+// ================= 核心逻辑 =================
+
 async function getAPI() {
+    if (!PAN_URLS.length) return null;
     for (const url of PAN_URLS) {
         try { 
-            const res = await $fetch.get(`${url}/api/health`, { timeout: 3000 });
+            const res = await $fetch.get(`${url}/api/health`, { timeout: 2000 });
             if (res.status === 200) return url;
         } catch (e) {}
     }
@@ -51,7 +65,7 @@ async function getCards(ext) {
     if (!kw) return jsonify({ list: [] });
 
     const api = await getAPI();
-    $print(`[PanSou] 请求API: ${api} | 关键词: ${kw}`);
+    if (!api) return jsonify({ list: [] });
 
     try {
         const res = await $fetch.post(`${api}/api/search`, {
@@ -67,18 +81,10 @@ async function getCards(ext) {
             } 
         });
 
-        // 打印原始响应，排查是否为空的核心逻辑
-        $print(`[PanSou] 接口原始状态码: ${res.status}`);
-        
         const respBody = typeof res.data === 'string' ? argsify(res.data) : res.data;
-        const data = respBody?.merged_by_type || respBody?.data?.merged_by_type;
-
-        if (!data || Object.keys(data).length === 0) {
-            $print(`[PanSou] 警告: 接口返回数据体为空，请检查Token或API是否受限`);
-            return jsonify({ list: [] });
-        }
-
+        const data = (respBody?.merged_by_type || respBody?.data?.merged_by_type) || {};
         const prio = ($config?.pan_priority || []).reduce((acc, k, i) => ({ ...acc, [k]: i }), {});
+
         let list = [];
         Object.entries(data).forEach(([bKey, items]) => {
             items.forEach(item => list.push({
@@ -93,14 +99,14 @@ async function getCards(ext) {
         });
 
         list.sort((a, b) => (prio[a.fKey] ?? 99) - (prio[b.fKey] ?? 99) || b.ts - a.ts);
-        $print(`[PanSou] 成功获取资源条数: ${list.length}`);
 
         const page = parseInt(ext.page) || 1;
-        return jsonify({ list: list.slice((page - 1) * 20, page * 20), page, pagecount: Math.ceil(list.length / 20) || 1 });
-    } catch (e) { 
-        $print(`[PanSou] 搜索失败: ${e.message}`);
-        return jsonify({ list: [] }); 
-    }
+        return jsonify({ 
+            list: list.slice((page - 1) * 20, page * 20), 
+            page, 
+            pagecount: Math.ceil(list.length / 20) || 1 
+        });
+    } catch (e) { return jsonify({ list: [] }); }
 }
 
 async function getTracks(ext) {
