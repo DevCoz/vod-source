@@ -54,8 +54,9 @@ async function getAPI() {
 
 async function getConfig() {
     return jsonify({
-        ver: 1, title: "PanSou 网盘搜索", site: PAN_URLS[0] || "",
-        tabs: [{ name: '网盘搜索', ext: jsonify({ id: 'search' }) }]
+        ver: 1, 
+        title: "PanSou 网盘搜索", 
+        site: PAN_URLS[0] || ""
     });
 }
 
