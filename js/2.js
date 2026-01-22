@@ -1,19 +1,8 @@
-// ================= 自定义配置格式 =================
-// {
-//   "pansou_urls": "https://api1.example.com,https://api2.example.com",
-//   "pansou_token": "",
-//   "quark": true,
-//   "uc": true,
-//   "ali": true,
-//   "pan_priority": ["quark", "ali", "uc"]
-// }
-
 const $config = argsify($config_str);
 
 function argsify(str) { try { return str ? JSON.parse(str) : {} } catch (e) { return {} } }
 function jsonify(obj) { return JSON.stringify(obj) }
 
-// ================= 常量配置 =================
 const PAN_PIC_MAP = {
     aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
     quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
@@ -39,19 +28,12 @@ const PAN_URLS = ($config?.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).
 const ENABLED_TYPES = TYPE_MAP.filter(m => $config?.[m.front] !== false).map(m => m.back);
 const B2F = TYPE_MAP.reduce((acc, m) => ({ ...acc, [m.back]: m.front }), {});
 
-// ================= 核心逻辑 =================
-
 async function getAPI() {
     for (const url of PAN_URLS) {
         try { 
-            const res = await $fetch.get(`${url}/api/health`, { timeout: 2000 });
-            if (res.status === 200) {
-                $print(`[PanSou] API可用: ${url}`);
-                return url;
-            }
-        } catch (e) {
-            $print(`[PanSou] API连接失败: ${url}`);
-        }
+            const res = await $fetch.get(`${url}/api/health`, { timeout: 3000 });
+            if (res.status === 200) return url;
+        } catch (e) {}
     }
     return PAN_URLS[0];
 }
@@ -68,25 +50,35 @@ async function getCards(ext) {
     const kw = ext.search_text || ext.text || "";
     if (!kw) return jsonify({ list: [] });
 
-    $print(`[PanSou] 开始搜索关键词: ${kw}`);
     const api = await getAPI();
-    if (!api) {
-        $print("[PanSou] 错误: 未配置或无可用API");
-        return jsonify({ list: [] });
-    }
+    $print(`[PanSou] 请求API: ${api} | 关键词: ${kw}`);
 
     try {
         const res = await $fetch.post(`${api}/api/search`, {
             kw, res: "merge", src: "all", cloud_types: ENABLED_TYPES,
             filter: { 
-                include: [],
+                include: ["电影", "电视剧", "动漫", "全集", "4K", "1080P"],
                 exclude: ["预告", "花絮", "枪版", "TS", "广告"]
             }
-        }, { headers: { 'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '' } });
+        }, { 
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '' 
+            } 
+        });
 
-        const data = (res.data?.merged_by_type || res.data?.data?.merged_by_type) || {};
+        // 打印原始响应，排查是否为空的核心逻辑
+        $print(`[PanSou] 接口原始状态码: ${res.status}`);
+        
+        const respBody = typeof res.data === 'string' ? argsify(res.data) : res.data;
+        const data = respBody?.merged_by_type || respBody?.data?.merged_by_type;
+
+        if (!data || Object.keys(data).length === 0) {
+            $print(`[PanSou] 警告: 接口返回数据体为空，请检查Token或API是否受限`);
+            return jsonify({ list: [] });
+        }
+
         const prio = ($config?.pan_priority || []).reduce((acc, k, i) => ({ ...acc, [k]: i }), {});
-
         let list = [];
         Object.entries(data).forEach(([bKey, items]) => {
             items.forEach(item => list.push({
@@ -100,26 +92,19 @@ async function getCards(ext) {
             }));
         });
 
-        // 排序逻辑
         list.sort((a, b) => (prio[a.fKey] ?? 99) - (prio[b.fKey] ?? 99) || b.ts - a.ts);
-        
-        $print(`[PanSou] 搜索完成，找到结果: ${list.length} 条`);
+        $print(`[PanSou] 成功获取资源条数: ${list.length}`);
 
         const page = parseInt(ext.page) || 1;
-        return jsonify({ 
-            list: list.slice((page - 1) * 20, page * 20), 
-            page, 
-            pagecount: Math.ceil(list.length / 20) || 1 
-        });
+        return jsonify({ list: list.slice((page - 1) * 20, page * 20), page, pagecount: Math.ceil(list.length / 20) || 1 });
     } catch (e) { 
-        $print(`[PanSou] 搜索请求异常: ${e.message}`);
+        $print(`[PanSou] 搜索失败: ${e.message}`);
         return jsonify({ list: [] }); 
     }
 }
 
 async function getTracks(ext) {
     const { url, pwd, title } = argsify(ext);
-    $print(`[PanSou] 解析链接: ${title}`);
     return jsonify({
         list: [{ title: '链接详情', tracks: [{ name: `${title}${pwd ? ' [' + pwd + ']' : ''}`, pan: url, ext: jsonify({ url }) }] }]
     });
