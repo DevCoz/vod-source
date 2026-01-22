@@ -79,7 +79,7 @@ async function getCards(ext) {
         const res = await $fetch.post(`${api}/api/search`, {
             kw, res: "merge", src: "all", cloud_types: ENABLED_TYPES,
             filter: { 
-                include: ["HDR","杜比","DV","REMUX","HQ","臻彩","高码","高画质","60FPS","60帧',"高帧率","60HZ","4K", "2160P"],
+                include: ["HDR","杜比","DV","REMUX","HQ","臻彩","高码","高画质","60FPS","60帧","高帧率","60HZ","4K", "2160P"],
                 exclude: ["预告", "花絮", "枪版", "TS", "广告"]
             }
         }, { headers: { 'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '' } });
