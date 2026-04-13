@@ -11,18 +11,6 @@
             "type": 3,
             "api": "csp_pansou",
             "ext": "https://raw.githubusercontent.com/DevCoz/vod-source/refs/heads/main/js/PanSou%20%E8%B5%84%E6%BA%90.js"
-        },
-        {
-            "name": "小米",
-            "type": 3,
-            "api": "csp_mihdr",
-            "ext": "https://raw.githubusercontent.com/Yswag/xptv-extensions/main/js/mihdr.js"
-        },
-        {
-            "name": "雷鲸",
-            "type": 3,
-            "api": "csp_leijing",
-            "ext": "https://raw.githubusercontent.com/fangkuia/XPTV/refs/heads/main/js/leijing.js"
         }
     ]
 }
