@@ -17,22 +17,15 @@ function jsonify(obj) { return JSON.stringify(obj) }
 const PAN_PIC_MAP = {
     aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
     quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
-    uc: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/uc.png",
-    pikpak: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/pikpak.jpg",
-    xunlei: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/thunder.png",
-    '123': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/123.png",
-    tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png",
-    mobile: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/139.jpg",
     '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
-    baidu: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
+    tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png",
 };
 
 const TYPE_MAP = [
-    { front: 'quark', back: 'quark' }, { front: 'uc', back: 'uc' }, 
-    { front: 'ali', back: 'aliyun' }, { front: 'a189', back: 'tianyi' },
-    { front: 'a139', back: 'mobile' }, { front: 'a115', back: '115' },
-    { front: 'baidu', back: 'baidu' }, { front: 'pikpak', back: 'pikpak' },
-    { front: 'xunlei', back: 'xunlei' }, { front: 'a123', back: '123' }
+    { front: 'quark', back: 'quark' },
+    { front: 'ali', back: 'aliyun' },
+    { front: 'a189', back: 'tianyi' },
+    { front: 'a115', back: '115' },
 ];
 
 const PAN_URLS = ($config?.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).filter(Boolean);
