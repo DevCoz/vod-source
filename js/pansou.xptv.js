@@ -58,31 +58,36 @@ async function getAPI() {
 }
 
 // 链接检测：POST /api/check 批量检测网盘链接状态
+let checkSupported = true; // 自动降级：首次404后跳过
 async function checkLinks(api, items) {
-    if (!items || items.length === 0) return {};
-    try {
-        const { data } = await $fetch.post(`${api}/api/check`, { items }, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '',
-            },
-        });
-        const resp = typeof data === 'string' ? argsify(data) : data;
-        const results = resp?.results || resp?.data?.results || [];
-        $print(`checkLinks: items=${items.length}, results=${results.length}`);
-        // 构建 url → state 映射
-        const map = {};
-        for (const r of results) {
-            map[r.url] = {
-                state: r.state || 'uncertain',
-                summary: r.summary || '',
-            };
+    if (!items || items.length === 0 || !checkSupported) return {};
+    const BATCH_SIZE = 20;
+    const allResults = [];
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const batch = items.slice(i, i + BATCH_SIZE);
+        try {
+            const resp = await $fetch.post(`${api}/api/check/links`, { items: batch }, {
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (resp.status === 404) {
+                $print('check API not available (404), skipping');
+                checkSupported = false;
+                return {};
+            }
+            const body = typeof resp.data === 'string' ? argsify(resp.data) : resp.data;
+            const results = body?.results || body?.data?.results || [];
+            for (const r of results) allResults.push(r);
+        } catch (e) {
+            $print(`checkLinks error: ${e.message || e}`);
+            checkSupported = false;
+            return {};
         }
-        return map;
-    } catch (e) {
-        $print(`checkLinks error: ${e.message || e}`);
-        return {};
     }
+    const map = {};
+    for (const r of allResults) {
+        map[r.url] = { state: r.state || 'uncertain', summary: r.summary || '' };
+    }
+    return map;
 }
 
 // ================= 六个接口 =================
