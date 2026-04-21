@@ -18,14 +18,14 @@ const PAN_PIC_MAP = {
     aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
     quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
     '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
-    tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png",
+    tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png"
 };
 
 const TYPE_MAP = [
     { front: 'quark', back: 'quark' },
     { front: 'ali', back: 'aliyun' },
     { front: 'a189', back: 'tianyi' },
-    { front: 'a115', back: '115' },
+    { front: 'a115', back: '115' }
 ];
 
 const PAN_URLS = ($config?.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).filter(Boolean);
