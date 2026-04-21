@@ -176,15 +176,17 @@ async function getCards(ext) {
 
         // 排序：有效链接优先，再按网盘优先级和时间
         list.sort((a, b) => {
-            // 失效链接排最后
-            if (a.check_state === 'bad' && b.check_state !== 'bad') return 1;
-            if (b.check_state === 'bad' && a.check_state !== 'bad') return -1;
             // 网盘优先级
             const prioDiff = (prio[a.fKey] ?? 99) - (prio[b.fKey] ?? 99);
             if (prioDiff !== 0) return prioDiff;
             // 时间倒序
             return b.ts - a.ts;
         });
+
+        // 过滤失效链接
+        if (CHECK_ENABLED) {
+            list = list.filter(item => item.check_state !== 'bad');
+        }
 
         const page = parseInt(ext.page) || 1;
         return jsonify({
