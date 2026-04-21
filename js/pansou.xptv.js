@@ -1,140 +1,207 @@
-// PanSou 盘搜 XPTV 源
-// 网盘资源搜索API：https://so.252035.xyz
-// 需要对应网盘 APP 或插件才能播放（夸克/阿里/115/天翼）
+// ================= 自定义配置格式 =================
+// {
+//   "pansou_urls": "https://api1.example.com,https://api2.example.com",
+//   "pansou_token": "",
+//   "quark": true,
+//   "ali": true,
+//   "pan_priority": ["quark", "ali", "115", "tianyi"],
+//   "check_enabled": true
+// }
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-const SITE = 'https://so.252035.xyz';
-const API_SEARCH = `${SITE}/api/search`;
+const $config = argsify(typeof $config_str !== 'undefined' ? $config_str : '{}');
 
-const SUPPORTED_PAN_TYPES = ['quark', 'aliyun', '115', 'tianyi'];
+function argsify(str) { try { return str ? JSON.parse(str) : {} } catch (e) { return {} } }
+function jsonify(obj) { return JSON.stringify(obj) }
 
-const PAN_TYPE_NAMES = {
-  'quark': '夸克网盘',
-  'aliyun': '阿里网盘',
-  '115': '115网盘',
-  'tianyi': '天翼网盘'
+// ================= 常量配置 =================
+const PAN_PIC_MAP = {
+    aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
+    quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
+    '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
+    tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png",
 };
 
-function detectPanType(url) {
-  if (!url) return '';
-  if (url.includes('pan.quark.cn') || url.includes('pan.qoark.cn')) return 'quark';
-  if (url.includes('pan.aliyun.com') || url.includes('alipan.com') || url.includes('aliyundrive.com')) return 'aliyun';
-  if (url.includes('115.com') || url.includes('115cdn.com')) return '115';
-  if (url.includes('cloud.189.cn')) return 'tianyi';
-  return '';
+// 链接检测状态中文映射
+const CHECK_STATE_MAP = {
+    ok: '✅ 有效',
+    bad: '❌ 失效',
+    locked: '🔒 加密',
+    unsupported: '⚠️ 不支持',
+    uncertain: '❓ 未知',
+};
+
+// ================= 类型映射 =================
+const TYPE_MAP = [
+    { front: 'quark', back: 'quark' },
+    { front: 'ali', back: 'aliyun' },
+    { front: 'a189', back: 'tianyi' },
+    { front: 'a115', back: '115' },
+];
+
+const PAN_URLS = ($config?.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).filter(Boolean);
+const ENABLED_TYPES = TYPE_MAP.filter(m => $config?.[m.front] !== false).map(m => m.back);
+const B2F = TYPE_MAP.reduce((acc, m) => ({ ...acc, [m.back]: m.front }), {});
+const CHECK_ENABLED = $config?.check_enabled !== false;
+
+// ================= 核心逻辑 =================
+
+// 健康检查：遍历多个 PanSou 后端，返回第一个可用的
+async function getAPI() {
+    if (!PAN_URLS.length) return null;
+    for (const url of PAN_URLS) {
+        try {
+            const res = await $fetch.get(`${url}/api/health`, { timeout: 2000 });
+            if (res.status === 200) return url;
+        } catch (e) {}
+    }
+    return PAN_URLS[0];
 }
 
+// 链接检测：POST /api/check 批量检测网盘链接状态
+async function checkLinks(api, items) {
+    if (!items || items.length === 0) return {};
+    try {
+        const res = await $fetch.post(`${api}/api/check`, JSON.stringify({ items }), {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '',
+            },
+            timeout: 15000,
+        });
+        const respBody = typeof res.data === 'string' ? argsify(res.data) : res.data;
+        const results = respBody?.results || [];
+        // 构建 url → state 映射
+        const map = {};
+        for (const r of results) {
+            map[r.url] = {
+                state: r.state || 'uncertain',
+                summary: r.summary || '',
+            };
+        }
+        return map;
+    } catch (e) {
+        return {};
+    }
+}
+
+// ================= 六个接口 =================
+
 async function getLocalInfo() {
-  return jsonify({
-    ver: 1,
-    name: '盘搜',
-    api: 'csp_pansou',
-    type: 3
-  });
+    return jsonify({
+        ver: 1,
+        name: 'PanSou网盘搜索',
+        api: 'csp_pansou',
+        type: 3,
+    });
 }
 
 async function getConfig() {
-  return jsonify({
-    ver: 1,
-    title: '盘搜',
-    site: SITE,
-    tabs: []
-  });
+    return jsonify({
+        ver: 1,
+        title: "PanSou 网盘搜索",
+        site: PAN_URLS[0] || "",
+    });
 }
 
 async function getCards(ext) {
-  return jsonify({ list: [], page: 1 });
+    ext = argsify(ext);
+    const kw = ext.search_text || ext.text || "";
+    if (!kw) return jsonify({ list: [] });
+
+    const api = await getAPI();
+    if (!api) return jsonify({ list: [] });
+
+    try {
+        // 搜索
+        const res = await $fetch.post(`${api}/api/search`, JSON.stringify({
+            kw, res: "merge", src: "all", cloud_types: ENABLED_TYPES,
+            filter: {
+                include: ["HDR", "杜比", "DV", "REMUX", "HQ", "臻彩", "高码", "高画质", "60FPS", "60帧", "高帧率", "60HZ", "4K", "2160P"],
+                exclude: ["预告", "花絮", "枪版", "TS", "广告"],
+            },
+        }), {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '',
+            },
+        });
+
+        const respBody = typeof res.data === 'string' ? argsify(res.data) : res.data;
+        const data = (respBody?.merged_by_type || respBody?.data?.merged_by_type) || {};
+        const prio = ($config?.pan_priority || []).reduce((acc, k, i) => ({ ...acc, [k]: i }), {});
+
+        // 构造待检测链接列表
+        const checkItems = [];
+        for (const [bKey, items] of Object.entries(data)) {
+            for (const item of items) {
+                checkItems.push({
+                    disk_type: bKey,
+                    url: item.url,
+                    password: item.password || '',
+                });
+            }
+        }
+
+        // 批量链接检测
+        let checkMap = {};
+        if (CHECK_ENABLED && checkItems.length > 0) {
+            checkMap = await checkLinks(api, checkItems);
+        }
+
+        let list = [];
+        Object.entries(data).forEach(([bKey, items]) => {
+            items.forEach(item => {
+                const checkResult = checkMap[item.url];
+                const checkState = checkResult?.state || '';
+                const checkLabel = CHECK_STATE_MAP[checkState] || '';
+
+                list.push({
+                    vod_id: item.url,
+                    vod_name: item.note || kw,
+                    vod_pic: PAN_PIC_MAP[bKey] || "",
+                    vod_remarks: `${(B2F[bKey] || bKey).toUpperCase()} | ${item.datetime?.split('T')[0] || ''}${checkLabel ? ' | ' + checkLabel : ''}`,
+                    ts: item.datetime ? new Date(item.datetime).getTime() : 0,
+                    fKey: B2F[bKey] || bKey,
+                    check_state: checkState,
+                    ext: jsonify({ url: item.url, pwd: item.password || "", title: item.note || kw }),
+                });
+            });
+        });
+
+        // 排序：有效链接优先，再按网盘优先级和时间
+        list.sort((a, b) => {
+            // 失效链接排最后
+            if (a.check_state === 'bad' && b.check_state !== 'bad') return 1;
+            if (b.check_state === 'bad' && a.check_state !== 'bad') return -1;
+            // 网盘优先级
+            const prioDiff = (prio[a.fKey] ?? 99) - (prio[b.fKey] ?? 99);
+            if (prioDiff !== 0) return prioDiff;
+            // 时间倒序
+            return b.ts - a.ts;
+        });
+
+        const page = parseInt(ext.page) || 1;
+        return jsonify({
+            list: list.slice((page - 1) * 20, page * 20),
+            page,
+            pagecount: Math.ceil(list.length / 20) || 1,
+        });
+    } catch (e) { return jsonify({ list: [] }); }
 }
 
 async function getTracks(ext) {
-  ext = argsify(ext);
-  const { url, password, note, panType } = ext;
-
-  if (!url) {
-    return jsonify({ list: [] });
-  }
-
-  let finalUrl = url;
-  if (password && !url.includes('?pwd=') && !url.includes('&pwd=') && !url.includes('password=')) {
-    finalUrl = url.includes('?') ? `${url}&pwd=${password}` : `${url}?pwd=${password}`;
-  }
-
-  return jsonify({
-    list: [{
-      title: PAN_TYPE_NAMES[panType] || '网盘资源',
-      tracks: [{
-        name: note || PAN_TYPE_NAMES[panType] || '网盘资源',
-        pan: finalUrl,
-        ext: {}
-      }]
-    }]
-  });
-}
-
-async function getPlayinfo(ext) {
-  return jsonify({ urls: [] });
-}
-
-async function search(ext) {
-  ext = argsify(ext);
-  const { text, wd, page = 1 } = ext;
-  const keyword = text || wd || '';
-
-  if (!keyword) {
-    return jsonify({ list: [], page: 1 });
-  }
-
-  try {
-    const { data: apiResponse } = await $fetch.post(API_SEARCH, JSON.stringify({ kw: keyword }), {
-      headers: {
-        'User-Agent': UA,
-        'Content-Type': 'application/json',
-        'Referer': SITE + '/'
-      }
+    const { url, pwd, title } = argsify(ext);
+    return jsonify({
+        list: [{
+            title: '链接详情',
+            tracks: [{
+                name: `${title}${pwd ? ' [' + pwd + ']' : ''}`,
+                pan: url,
+                ext: jsonify({ url }),
+            }],
+        }],
     });
-
-    let responseData;
-    try {
-      responseData = typeof apiResponse === 'string' ? JSON.parse(apiResponse) : apiResponse;
-    } catch (e) {
-      return jsonify({ list: [], page: 1 });
-    }
-
-    if (responseData.code !== 0 || !responseData.data) {
-      return jsonify({ list: [], page: 1 });
-    }
-
-    const mergedByType = responseData.data.merged_by_type || {};
-    const list = [];
-
-    for (const panType of SUPPORTED_PAN_TYPES) {
-      const items = mergedByType[panType] || [];
-      for (const item of items) {
-        if (!item.url) continue;
-
-        const detectedType = detectPanType(item.url) || panType;
-        if (!SUPPORTED_PAN_TYPES.includes(detectedType)) continue;
-
-        list.push({
-          vod_id: `${detectedType}_${item.url}_${item.datetime || ''}`,
-          vod_name: item.note || `${PAN_TYPE_NAMES[detectedType]}资源`,
-          vod_pic: (item.images && item.images.length > 0) ? item.images[0] : '',
-          vod_remarks: item.datetime ? item.datetime.split('T')[0] : '',
-          ext: {
-            url: item.url,
-            password: (item.password && item.password !== '***') ? item.password : '',
-            note: item.note || '',
-            panType: detectedType
-          }
-        });
-      }
-    }
-
-    list.sort((a, b) => (b.vod_remarks || '').localeCompare(a.vod_remarks || ''));
-
-    return jsonify({ list, page });
-
-  } catch (error) {
-    return jsonify({ list: [], page: 1 });
-  }
 }
+
+async function getPlayinfo() { return jsonify({ urls: [] }); }
+async function search(ext) { return getCards(ext); }
