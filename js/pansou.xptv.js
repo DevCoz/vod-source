@@ -61,15 +61,15 @@ async function getAPI() {
 async function checkLinks(api, items) {
     if (!items || items.length === 0) return {};
     try {
-        const res = await $fetch.post(`${api}/api/check`, JSON.stringify({ items }), {
+        const { data } = await $fetch.post(`${api}/api/check`, { items }, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '',
             },
-            timeout: 15000,
         });
-        const respBody = typeof res.data === 'string' ? argsify(res.data) : res.data;
-        const results = respBody?.results || [];
+        const resp = typeof data === 'string' ? argsify(data) : data;
+        const results = resp?.results || resp?.data?.results || [];
+        $print(`checkLinks: items=${items.length}, results=${results.length}`);
         // 构建 url → state 映射
         const map = {};
         for (const r of results) {
@@ -80,6 +80,7 @@ async function checkLinks(api, items) {
         }
         return map;
     } catch (e) {
+        $print(`checkLinks error: ${e.message || e}`);
         return {};
     }
 }
@@ -113,26 +114,26 @@ async function getCards(ext) {
 
     try {
         // 搜索
-        const res = await $fetch.post(`${api}/api/search`, JSON.stringify({
+        const { data: searchData } = await $fetch.post(`${api}/api/search`, {
             kw, res: "merge", src: "all", cloud_types: ENABLED_TYPES,
             filter: {
                 include: ["HDR", "杜比", "DV", "REMUX", "HQ", "臻彩", "高码", "高画质", "60FPS", "60帧", "高帧率", "60HZ", "4K", "2160P"],
                 exclude: ["预告", "花絮", "枪版", "TS", "广告"],
             },
-        }), {
+        }, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': $config?.pansou_token ? `Bearer ${$config.pansou_token}` : '',
             },
         });
 
-        const respBody = typeof res.data === 'string' ? argsify(res.data) : res.data;
-        const data = (respBody?.merged_by_type || respBody?.data?.merged_by_type) || {};
+        const respBody = typeof searchData === 'string' ? argsify(searchData) : searchData;
+        const mergedData = (respBody?.merged_by_type || respBody?.data?.merged_by_type) || {};
         const prio = ($config?.pan_priority || []).reduce((acc, k, i) => ({ ...acc, [k]: i }), {});
 
         // 构造待检测链接列表
         const checkItems = [];
-        for (const [bKey, items] of Object.entries(data)) {
+        for (const [bKey, items] of Object.entries(mergedData)) {
             for (const item of items) {
                 checkItems.push({
                     disk_type: bKey,
@@ -149,7 +150,7 @@ async function getCards(ext) {
         }
 
         let list = [];
-        Object.entries(data).forEach(([bKey, items]) => {
+        Object.entries(mergedData).forEach(([bKey, items]) => {
             items.forEach(item => {
                 const checkResult = checkMap[item.url];
                 const checkState = checkResult?.state || '';
