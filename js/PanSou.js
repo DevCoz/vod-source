@@ -3,8 +3,6 @@
 //   "pansou_urls": "https://api1.example.com,https://api2.example.com",
 //   "pansou_token": "",
 //   "quark": true,
-//   "uc": true,
-//   "ali": true,
 //   "pan_priority": ["quark", "ali", "uc"]
 // }
 
