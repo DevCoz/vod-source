@@ -1,3 +1,4 @@
+//小改
 const cheerio = createCheerio()
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
@@ -5,7 +6,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const appConfig = {
     ver: 1,
     title: '云盘吧',
-    site: 'https://yunpan8.cc',
+    site: 'https://yunpan8.net',
 }
 
 async function getConfig() {
@@ -17,7 +18,7 @@ async function getConfig() {
 async function getTabs() {
     let url = appConfig.site + '/tags'
     let tabs = []
-    let ignore = ['求助', '公告']
+    let ignore = ['求助', '公告', '游戏', '书籍', '软件', '课程', '音乐', '其他', '百度网盘', '迅雷云盘']
     function isIgnoreClassName(className) {
         return ignore.some((element) => className.includes(element))
     }
@@ -65,12 +66,14 @@ async function getCards(ext) {
     const videos = json.data
     videos.forEach((e) => {
         const title = e.attributes.title
+        const match = title.match(/《(.*?)》/);
+        const dramaName = match && match[1] ? match[1] : title;
         const id = e.attributes.slug
         const createdAt = e.attributes.createdAt.split('+')[0].replace('T', ' ')
 
         cards.push({
             vod_id: id,
-            vod_name: title,
+            vod_name: dramaName,
             vod_pic: '',
             vod_pubdate: createdAt,
             ext: {
@@ -125,41 +128,32 @@ async function getPlayinfo(ext) {
 async function search(ext) {
     ext = argsify(ext)
     let cards = []
-
     let text = encodeURIComponent(ext.text)
-    let page = ext.page || 1
-    // 搜尋好像壞了
-    // let url = `${appConfig.site}/?PageIndex=${page}&PageSize=50&Keyword=${text}`
+    let url = `${appConfig.site}/?sort=top&q=${text}`
 
-    // const { data } = await $fetch.get(url, {
-    //     headers: {
-    //         'User-Agent': UA,
-    //     },
-    // })
+    const { data } = await $fetch.get(url, {
+        headers: {
+            'User-Agent': UA,
+        },
+    })
 
-    // const $ = cheerio.load(data)
+    const $ = cheerio.load(data)
 
-    // const videos = $('.col')
-    // videos.each((_, e) => {
-    //     const action = $(e).find('.card-link').eq(1).attr('onclick')
-    //     const panUrl = action.match(/open\(\'(.*)\'\)/)[1]
-
-    //     const title = $(e).find('h5.card-title').text()
-    //     const panType = $(e).find('h5.card-title span').text()
-    //     const name = title.replace(panType, '')
-
-    //     const cover = $(e).find('img').attr('src')
-    //     cards.push({
-    //         vod_id: panUrl,
-    //         vod_name: name,
-    //         vod_pic: `${appConfig.site}${cover}`,
-    //         vod_remarks: panType,
-    //         ext: {
-    //             name,
-    //             url: panUrl,
-    //         },
-    //     })
-    // })
+    const videos = $('.DiscussionListItem-main')
+    videos.each((_, e) => {
+        const href = $(e).attr('href')
+        const title = $(e).find('.DiscussionListItem-title').text()
+        const match = title.match(/《(.*?)》/);
+        const dramaName = match && match[1] ? match[1] : title; 
+        
+        cards.push({
+            vod_id: href,
+            vod_name: dramaName,
+            ext: {
+                'url': `${appConfig.site}${href}`,
+            },
+        })
+    })
 
     return jsonify({
         list: cards,
