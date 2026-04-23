@@ -1,6 +1,7 @@
 const cheerio = createCheerio()
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+const UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 
 let appConfig = {
     ver: 1,
@@ -68,7 +69,9 @@ async function getCards(ext) {
 
     videolist.each((_, element) => {
         const href = $(element).attr('href') || $(element).find('.overlay').attr('href')
-        const title = $(element).find('.home-rows-videos-title').text() || $(element).find('.card-mobile-title').text()
+        const title =
+            $(element).find('.home-rows-videos-title').text().trim() ||
+            $(element).find('.card-mobile-title').text().trim()
         let cover = $(element).find('img').attr('src')
         if (cover.includes('background')) cover = $(element).find('img').eq(1).attr('src')
         cards.push({
@@ -165,7 +168,7 @@ async function search(ext) {
 
     $('.col-xs-6').each((_, element) => {
         const href = $(element).find('.overlay').attr('href')
-        const title = $(element).find('.card-mobile-title').text()
+        const title = $(element).find('.card-mobile-title').text().trim()
         const cover = $(element).find('img').eq(1).attr('src')
         cards.push({
             vod_id: href,
