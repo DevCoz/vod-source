@@ -13,13 +13,15 @@ function jsonify(obj) { return JSON.stringify(obj) }
 
 // ================= 常量配置 =================
 const PAN_PIC_MAP = {
-    aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
+    baidu: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
     quark: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
+    aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
     '115': "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
     tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png"
 };
 
 const TYPE_MAP = [
+    { front: 'baidu', back: 'baidu' },
     { front: 'quark', back: 'quark' },
     { front: 'ali', back: 'aliyun' },
     { front: 'a189', back: 'tianyi' },
