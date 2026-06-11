@@ -48,7 +48,7 @@ async function getAPI() {
 async function getConfig() {
     return jsonify({
         ver: 1, 
-        title: "PanSou 网盘搜索", 
+        title: "PanSou", 
         site: PAN_URLS[0] || ""
     });
 }
