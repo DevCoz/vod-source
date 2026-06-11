@@ -26,10 +26,6 @@ Object.keys(PAN).forEach(function(k) { B2F[PAN[k]] = k; });
 const PAN_URLS      = ($config.pansou_urls || "").split(/[\n,]/).map(function(u) { return u.trim(); }).filter(Boolean);
 const ENABLED_TYPES = Object.keys(PAN).filter(function(k) { return $config[k] !== false; }).map(function(k) { return PAN[k]; });
 
-async function getLocalInfo() {
-    return jsonify({ ver: 1, name: "PanSou 网盘搜索", api: "csp_pansou", type: 3 });
-}
-
 async function getAPI() {
     if (!PAN_URLS.length) return null;
     if (PAN_URLS.length === 1) return PAN_URLS[0]; 
