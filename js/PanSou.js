@@ -3,7 +3,7 @@
 //   "pansou_urls": "https://api1.example.com,https://api2.example.com",
 //   "pansou_token": "",
 //   "quark": true,
-//   "pan_priority": ["quark", "ali", "uc"]
+//   "pan_priority": ["baidu","quark", "ali"]
 // }
 
 const $config = argsify($config_str);
