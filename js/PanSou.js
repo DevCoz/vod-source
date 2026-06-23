@@ -6,9 +6,9 @@
 //   "pan_priority": ["baidu","quark","ali"]
 // }
 
-const $config = argsify($config_str)
 const argsify = str => { try { return str ? JSON.parse(str) : {} } catch { return {} } }
 const jsonify  = obj => JSON.stringify(obj)
+const $config = argsify($config_str)
 
 // ================= 常量配置 =================
 const PAN_PIC_MAP = {
@@ -26,9 +26,11 @@ Object.keys(PAN).forEach(k => { B2F[PAN[k]] = k })
 const PAN_URLS      = ($config.pansou_urls || "").split(/[\n,]/).map(u => u.trim()).filter(Boolean)
 const ENABLED_TYPES = Object.keys(PAN).filter(k => $config[k] !== false).map(k => PAN[k])
 
+// ================= 核心逻辑 =================
+
 async function getAPI() {
     if (!PAN_URLS.length) return null
-    if (PAN_URLS.length === 1) return PAN_URLS[0]
+    if (PAN_URLS.length === 1) return PAN_URLS[0]   // 单 URL 跳过健康检查
     for (const url of PAN_URLS) {
         try { if ((await $fetch.get(url + '/api/health', { timeout: 2000 })).status === 200) return url } catch {}
     }
