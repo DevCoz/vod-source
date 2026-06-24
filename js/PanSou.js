@@ -7,8 +7,6 @@
 // }
 
 const $config = argsify($config_str);
-function argsify(str) { try { return str ? JSON.parse(str) : {} } catch(e) { return {} } }
-function jsonify(obj) { return JSON.stringify(obj) }
 
 // ================= 常量配置 =================
 const PAN_PIC_MAP = {
