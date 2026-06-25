@@ -16,11 +16,11 @@ const appConfig = {
   site: "",
   tabs: [
     { name: "首页", ext: { url: "/", hasMore: false }, ui: 1 },
-    { name: "电影", ext: { url: "/type/1-1.html" }, ui: 1 },
-    { name: "剧集", ext: { url: "/type/2-1.html" }, ui: 1 },
-    { name: "动漫", ext: { url: "/type/4-1.html" }, ui: 1 },
-    { name: "日韩剧", ext: { url: "/type/15-1.html" }, ui: 1 },
-    { name: "欧美剧", ext: { url: "/type/16-1.html" }, ui: 1 }
+    { name: "电影", ext: { url: "/type/1-1.html" } },
+    { name: "剧集", ext: { url: "/type/2-1.html" } },
+    { name: "动漫", ext: { url: "/type/4-1.html" } },
+    { name: "日韩剧", ext: { url: "/type/15-1.html" } },
+    { name: "欧美剧", ext: { url: "/type/16-1.html" } }
   ]
 }
 
