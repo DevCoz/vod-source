@@ -28,6 +28,11 @@ function trimSlash(url) {
   return String(url || "").replace(/\/+$/, "")
 }
 
+function originOf(url) {
+  const match = String(url || "").match(/^(https?:\/\/[^/?#]+)/i)
+  return match ? match[1] : ""
+}
+
 function getHeaders(site) {
   site = trimSlash(site || SITE || DEFAULT_SITE)
   return {
@@ -36,6 +41,17 @@ function getHeaders(site) {
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Referer": site + "/",
     "Origin": site
+  }
+}
+
+function getRefererHeaders(referer) {
+  referer = referer || trimSlash(SITE || DEFAULT_SITE) + "/"
+  return {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Referer": referer,
+    "Origin": originOf(referer) || trimSlash(SITE || DEFAULT_SITE)
   }
 }
 
@@ -80,7 +96,9 @@ function isUsableHtml(html) {
   if (!html) return false
   if (html.indexOf("Service Unavailable") >= 0) return false
   if (html.indexOf("域名停用") >= 0 || html.indexOf("暂停使用") >= 0 || html.indexOf("停止访问") >= 0) return false
-  return html.indexOf("stui") >= 0 || html.indexOf("LIBVIO") >= 0 || html.indexOf("libvio") >= 0 || html.indexOf("网站随时失效") >= 0
+  return html.indexOf("stui-vodlist__thumb") >= 0
+    || html.indexOf("/detail/") >= 0
+    || html.indexOf("stui-content__playlist") >= 0
 }
 
 async function checkWebsite(site) {
@@ -230,9 +248,11 @@ async function getTracks(ext) {
       if (title.indexOf("下载") >= 0) {
         p.find(".netdisk-list a").each(function (_, item) {
           const a = $(item)
+          const pan = a.attr("href") || ""
+          if (!pan) return
           group.tracks.push({
             name: a.find(".netdisk-name").text().trim() || a.text().trim() || "网盘",
-            pan: a.attr("href") || "",
+            pan: pan,
             ext: {}
           })
         })
@@ -261,10 +281,10 @@ async function getPlayinfo(ext) {
   if (!ext.url) return jsonify({ urls: [] })
 
   try {
-    const resp = await $fetch.get(ext.url, { headers: getHeaders(), timeout: 12000 })
+    const resp = await $fetch.get(ext.url, { headers: getRefererHeaders(ext.url), timeout: 12000 })
     const url = parsePlayerUrl(resp.data)
     if (!url) return jsonify({ urls: [] })
-    return jsonify({ urls: [url], headers: [getHeaders()] })
+    return jsonify({ urls: [url], headers: [getRefererHeaders(ext.url)] })
   } catch (e) {
     return jsonify({ urls: [] })
   }
