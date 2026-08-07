@@ -1,6 +1,12 @@
 {
     "sites": [
         {
+            "name": "玩偶聚合",
+            "type": 3,
+            "api": "csp_woggjh",
+            "ext": "https://raw.githubusercontent.com/DevCoz/vod-source/refs/heads/main/js/%E7%8E%A9%E5%81%B6%E8%81%9A%E5%90%88.xptv.js"
+        },
+        {
             "name": "玩偶哥哥",
             "type": 3,
             "api": "csp_wogg",
