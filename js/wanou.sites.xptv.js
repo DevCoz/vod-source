@@ -4,6 +4,8 @@ const cheerio = createCheerio()
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 const REQUEST_TIMEOUT = parseInt($config.timeout, 10) || 8000
 const SEARCH_TIMEOUT = parseInt($config.searchTimeout, 10) || 7000
+const RECOMMEND_TIMEOUT = parseInt($config.recommendTimeout, 10) || 2500
+const RECOMMEND_DOMAIN_LIMIT = Math.max(1, parseInt($config.recommendDomainLimit, 10) || 2)
 const RECOMMEND_PAGE_SIZE = 40
 const RECOMMEND_SITE_LIMIT = Math.max(1, parseInt($config.recommendSiteLimit, 10) || 5)
 const MAX_AGGREGATE_SITES = Math.max(1, parseInt($config.maxAggregateSites, 10) || 5)
@@ -151,12 +153,13 @@ function isBlockedPage(html) {
     lower.indexOf("安全验证") >= 0
 }
 
-async function requestSite(site, requestPath, timeout) {
+async function requestSite(site, requestPath, timeout, domainLimit) {
   const rawPath = String(requestPath || "/").trim() || "/"
   const absoluteMatch = rawPath.match(/^(https?:\/\/[^/]+)(\/.*)?$/i)
   const relativePath = absoluteMatch ? (absoluteMatch[2] || "/") : (rawPath.charAt(0) === "/" ? rawPath : "/" + rawPath)
   let domains = siteDomains(site)
   if (absoluteMatch) domains = uniqueStrings([absoluteMatch[1]].concat(domains))
+  if (domainLimit > 0) domains = domains.slice(0, domainLimit)
   let lastError = ""
 
   for (let i = 0; i < domains.length; i++) {
@@ -257,7 +260,7 @@ async function fetchCategory(site, categoryId, page) {
 
 async function fetchHome(site) {
   try {
-    const result = await requestSite(site, "/", REQUEST_TIMEOUT)
+    const result = await requestSite(site, "/", RECOMMEND_TIMEOUT, RECOMMEND_DOMAIN_LIMIT)
     const $ = cheerio.load(result.html)
     let selector = ".module:first .module-item"
     if (!$(selector).length) selector = site.listSelector || ".module-item"
@@ -502,7 +505,10 @@ async function getCards(ext) {
     }
 
     const tasks = selectedSites.map(function (site) { return fetchHome(site) })
-    const nested = await Promise.all(tasks)
+    const settled = await Promise.allSettled(tasks)
+    const nested = settled.map(function (item) {
+      return item.status === "fulfilled" && Array.isArray(item.value) ? item.value : []
+    })
     let cards = []
     for (let i = 0; i < nested.length; i++) cards = cards.concat(nested[i])
     cards = aggregateCards(cards)
