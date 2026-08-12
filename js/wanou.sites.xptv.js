@@ -271,6 +271,38 @@ async function fetchHome(site) {
   }
 }
 
+function firstNonEmpty(tasks) {
+  return new Promise(function (resolve) {
+    if (!tasks.length) {
+      resolve([])
+      return
+    }
+
+    let pending = tasks.length
+    let finished = false
+    function complete(list) {
+      if (finished) return
+      if (Array.isArray(list) && list.length) {
+        finished = true
+        resolve(list)
+        return
+      }
+      pending--
+      if (pending === 0) {
+        finished = true
+        resolve([])
+      }
+    }
+
+    for (let i = 0; i < tasks.length; i++) {
+      tasks[i].then(complete, function (error) {
+        print("推荐任务异常：" + (error && error.message ? error.message : String(error)))
+        complete([])
+      })
+    }
+  })
+}
+
 async function fetchSearch(site, keyword, page) {
   try {
     const result = await requestSite(site, searchPath(site, keyword, page), SEARCH_TIMEOUT)
@@ -505,12 +537,7 @@ async function getCards(ext) {
     }
 
     const tasks = selectedSites.map(function (site) { return fetchHome(site) })
-    const settled = await Promise.allSettled(tasks)
-    const nested = settled.map(function (item) {
-      return item.status === "fulfilled" && Array.isArray(item.value) ? item.value : []
-    })
-    let cards = []
-    for (let i = 0; i < nested.length; i++) cards = cards.concat(nested[i])
+    let cards = await firstNonEmpty(tasks)
     cards = aggregateCards(cards)
     const start = (page - 1) * RECOMMEND_PAGE_SIZE
     return jsonify({
