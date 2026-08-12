@@ -4,8 +4,6 @@ const cheerio = createCheerio()
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 const REQUEST_TIMEOUT = parseInt($config.timeout, 10) || 8000
 const SEARCH_TIMEOUT = parseInt($config.searchTimeout, 10) || 7000
-const RECOMMEND_TIMEOUT = parseInt($config.recommendTimeout, 10) || 2500
-const RECOMMEND_DOMAIN_LIMIT = Math.max(1, parseInt($config.recommendDomainLimit, 10) || 2)
 const RECOMMEND_PAGE_SIZE = 40
 const RECOMMEND_SITE_LIMIT = Math.max(1, parseInt($config.recommendSiteLimit, 10) || 5)
 const MAX_AGGREGATE_SITES = Math.max(1, parseInt($config.maxAggregateSites, 10) || 5)
@@ -153,13 +151,12 @@ function isBlockedPage(html) {
     lower.indexOf("安全验证") >= 0
 }
 
-async function requestSite(site, requestPath, timeout, domainLimit) {
+async function requestSite(site, requestPath, timeout) {
   const rawPath = String(requestPath || "/").trim() || "/"
   const absoluteMatch = rawPath.match(/^(https?:\/\/[^/]+)(\/.*)?$/i)
   const relativePath = absoluteMatch ? (absoluteMatch[2] || "/") : (rawPath.charAt(0) === "/" ? rawPath : "/" + rawPath)
   let domains = siteDomains(site)
   if (absoluteMatch) domains = uniqueStrings([absoluteMatch[1]].concat(domains))
-  if (domainLimit > 0) domains = domains.slice(0, domainLimit)
   let lastError = ""
 
   for (let i = 0; i < domains.length; i++) {
@@ -260,7 +257,7 @@ async function fetchCategory(site, categoryId, page) {
 
 async function fetchHome(site) {
   try {
-    const result = await requestSite(site, "/", RECOMMEND_TIMEOUT, RECOMMEND_DOMAIN_LIMIT)
+    const result = await requestSite(site, "/", REQUEST_TIMEOUT)
     const $ = cheerio.load(result.html)
     let selector = ".module:first .module-item"
     if (!$(selector).length) selector = site.listSelector || ".module-item"
@@ -269,38 +266,6 @@ async function fetchHome(site) {
     print("推荐失败 " + site.name + "：" + e.message)
     return []
   }
-}
-
-function firstNonEmpty(tasks) {
-  return new Promise(function (resolve) {
-    if (!tasks.length) {
-      resolve([])
-      return
-    }
-
-    let pending = tasks.length
-    let finished = false
-    function complete(list) {
-      if (finished) return
-      if (Array.isArray(list) && list.length) {
-        finished = true
-        resolve(list)
-        return
-      }
-      pending--
-      if (pending === 0) {
-        finished = true
-        resolve([])
-      }
-    }
-
-    for (let i = 0; i < tasks.length; i++) {
-      tasks[i].then(complete, function (error) {
-        print("推荐任务异常：" + (error && error.message ? error.message : String(error)))
-        complete([])
-      })
-    }
-  })
 }
 
 async function fetchSearch(site, keyword, page) {
@@ -537,7 +502,9 @@ async function getCards(ext) {
     }
 
     const tasks = selectedSites.map(function (site) { return fetchHome(site) })
-    let cards = await firstNonEmpty(tasks)
+    const nested = await Promise.all(tasks)
+    let cards = []
+    for (let i = 0; i < nested.length; i++) cards = cards.concat(nested[i])
     cards = aggregateCards(cards)
     const start = (page - 1) * RECOMMEND_PAGE_SIZE
     return jsonify({
