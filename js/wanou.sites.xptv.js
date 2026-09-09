@@ -7,6 +7,12 @@ const SEARCH_TIMEOUT = parseInt($config.searchTimeout, 10) || 7000
 const RECOMMEND_PAGE_SIZE = 40
 const RECOMMEND_SITE_LIMIT = Math.max(1, parseInt($config.recommendSiteLimit, 10) || 5)
 const MAX_AGGREGATE_SITES = Math.max(1, parseInt($config.maxAggregateSites, 10) || 5)
+const MONITOR_URL = "https://site.920410.xyz"
+const MONITOR_CACHE_KEY = "wanou_aggregate_monitor_v1"
+const DOMAIN_UPDATE_INTERVAL = Math.max(1, Number($config.domainUpdateHours) || 1) * 3600000
+const MIRROR_CACHE_INTERVAL = Math.max(1, Number($config.mirrorCacheMinutes) || 30) * 60000
+const AUTO_UPDATE_DOMAINS = $config.autoUpdateDomains !== false && $config.autoUpdateDomains !== "false"
+let monitorTask = null
 
 // 顺序同时作为站点优先级。配置源自“玩偶聚合.js”的 DEFAULT_SITES/sitePriority。
 const SITES = [
@@ -134,12 +140,108 @@ function enabledSites() {
   return SITES.filter(function (site) { return ids.indexOf(site.id) >= 0 })
 }
 
-function siteDomains(site) {
+function readCache(key) {
+  try {
+    const value = $cache.get(key)
+    return typeof value === "string" ? JSON.parse(value) : value
+  } catch (e) { return null }
+}
+
+function domainUrl(value) {
+  const match = String(value || "").trim().match(/^(https?:\/\/(?:[a-z0-9.-]+|\[[a-f0-9:]+\])(?::\d{1,5})?)\/?$/i)
+  return match ? match[1].toLowerCase() : ""
+}
+
+async function mapLimit(items, limit, action) {
+  const results = new Array(items.length)
+  let cursor = 0
+  const workers = []
+  for (let i = 0; i < Math.min(limit, items.length); i++) {
+    workers.push((async function () {
+      while (cursor < items.length) {
+        const index = cursor++
+        results[index] = await action(items[index], index)
+      }
+    })())
+  }
+  await Promise.all(workers)
+  return results
+}
+
+function checkStatus(response) {
+  const status = Number(response.status || response.statusCode || 0)
+  // 固定文档只展示 data；运行时提供状态码时再检查该字段。
+  if (status && (status < 200 || status >= 300)) throw new Error("HTTP " + status)
+}
+
+function monitorDomains(data) {
+  if (!data || !data.sites || typeof data.sites !== "object") throw new Error("目录数据缺少 sites")
+  const sites = {}
+  for (let i = 0; i < SITES.length; i++) {
+    const site = SITES[i]
+    const record = data.sites[site.name]
+    if (!record || !Array.isArray(record.urls)) continue
+    const urls = record.urls.filter(function (item) { return item && domainUrl(item.url) })
+    urls.sort(function (a, b) {
+      const healthOrder = Number(b.has_keyword === true) - Number(a.has_keyword === true)
+      if (healthOrder) return healthOrder
+      const aLatency = typeof a.latency === "number" && a.latency >= 0 ? a.latency : Infinity
+      const bLatency = typeof b.latency === "number" && b.latency >= 0 ? b.latency : Infinity
+      if (aLatency !== bLatency) return aLatency - bLatency
+      return Number(b.url === record.best_url) - Number(a.url === record.best_url)
+    })
+    const domains = uniqueStrings(urls.map(function (item) { return domainUrl(item.url) }))
+    if (domains.length) sites[site.id] = domains
+  }
+  if (!Object.keys(sites).length) throw new Error("目录中没有已支持站点的网址")
+  return sites
+}
+
+async function refreshMonitor(force) {
+  if (monitorTask) return monitorTask
+  const previous = readCache(MONITOR_CACHE_KEY) || {}
+  const now = Date.now()
+  if (!force && (!AUTO_UPDATE_DOMAINS ||
+    (previous.fetchedAt && now - previous.fetchedAt < DOMAIN_UPDATE_INTERVAL) ||
+    (previous.attemptedAt && now - previous.attemptedAt < 60000))) return previous
+
+  monitorTask = (async function () {
+    const endpoints = ["/api/data", "/assets/data/monitor_data.json"]
+    let lastError = ""
+    for (let i = 0; i < endpoints.length; i++) {
+      try {
+        const response = await $fetch.get(MONITOR_URL + endpoints[i], {
+          headers: { "User-Agent": UA, Accept: "application/json", "Cache-Control": "no-cache" },
+          timeout: Math.min(REQUEST_TIMEOUT, 5000)
+        })
+        checkStatus(response)
+        const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data
+        const snapshot = {
+          fetchedAt: Date.now(), attemptedAt: now,
+          updatedAt: String(data && data.timestamp || ""),
+          sites: monitorDomains(data)
+        }
+        $cache.set(MONITOR_CACHE_KEY, JSON.stringify(snapshot))
+        return snapshot
+      } catch (e) { lastError = e.message || String(e) }
+    }
+    previous.attemptedAt = now
+    previous.error = lastError
+    $cache.set(MONITOR_CACHE_KEY, JSON.stringify(previous))
+    print("网址目录更新失败，沿用已保存地址：" + lastError)
+    return previous
+  })()
+  try { return await monitorTask } finally { monitorTask = null }
+}
+
+function siteDomains(site, snapshot) {
   let override = $config.domains && $config.domains[site.id]
   if (typeof override === "string") override = [override]
   if (!Array.isArray(override)) override = []
   const cached = $cache.get("wanou_aggregate_domain_" + site.id)
-  return uniqueStrings((cached ? [cached] : []).concat(override, site.domains || []))
+  const monitored = snapshot && snapshot.sites && snapshot.sites[site.id] || []
+  return uniqueStrings(override.concat(monitored, site.domains || [], cached ? [cached] : [])
+    .map(domainUrl).filter(Boolean))
 }
 
 function isBlockedPage(html) {
@@ -151,17 +253,48 @@ function isBlockedPage(html) {
     lower.indexOf("安全验证") >= 0
 }
 
-async function requestSite(site, requestPath, timeout) {
+function responseHtml(response) {
+  checkStatus(response)
+  let html = response.data
+  // 二小、闪电的部分镜像返回 JSON 编码的 HTML 字符串。
+  if (typeof html === "string" && html.trim().charAt(0) === '"') {
+    try { html = JSON.parse(html) } catch (e) {}
+  }
+  if (typeof html !== "string" || isBlockedPage(html)) throw new Error("空页面或验证页面")
+  return html
+}
+
+function validSitePage(html, kind) {
+  const $ = cheerio.load(html)
+  if (kind === "detail") {
+    return $(".module-info-heading, .module-row-one, .module-row-info, [data-clipboard-text], [data-link], a.btn-down[href^='http']").length > 0
+  }
+  if (kind === "search") {
+    return $(".module-search-item").length > 0 ||
+      ($("body.search form input[name='wd']").length > 0 && $("#main .module-items").length > 0)
+  }
+  if (kind === "category") {
+    return $("body.library #main .module-items").length > 0
+  }
+  return $(".module-item .module-item-pic a[href], .module-item .module-item-title[href]").length > 0
+}
+
+async function requestSite(site, requestPath, timeout, kind, force) {
   const rawPath = String(requestPath || "/").trim() || "/"
-  const absoluteMatch = rawPath.match(/^(https?:\/\/[^/]+)(\/.*)?$/i)
+  const absoluteMatch = rawPath.match(/^(https?:\/\/[^/?#]+)([/?#].*)?$/i)
   const relativePath = absoluteMatch ? (absoluteMatch[2] || "/") : (rawPath.charAt(0) === "/" ? rawPath : "/" + rawPath)
-  let domains = siteDomains(site)
-  if (absoluteMatch) domains = uniqueStrings([absoluteMatch[1]].concat(domains))
+  let snapshot = await refreshMonitor(false)
+  let domains = siteDomains(site, snapshot)
+  if (absoluteMatch) domains = uniqueStrings(domains.concat(domainUrl(absoluteMatch[1]))).filter(Boolean)
+  const cacheKey = "wanou_aggregate_mirrors_" + site.id
+  const state = readCache(cacheKey)
+  const attempted = []
   let lastError = ""
 
-  for (let i = 0; i < domains.length; i++) {
-    const baseUrl = trimSlash(domains[i])
-    const url = baseUrl + relativePath
+  async function probe(baseUrl) {
+    const url = baseUrl + (relativePath.charAt(0) === "/" ? relativePath : "/" + relativePath)
+    attempted.push(baseUrl)
+    const startedAt = Date.now()
     try {
       const response = await $fetch.get(url, {
         headers: {
@@ -171,18 +304,44 @@ async function requestSite(site, requestPath, timeout) {
         },
         timeout: timeout || REQUEST_TIMEOUT
       })
-      const html = typeof response.data === "string" ? response.data : JSON.stringify(response.data || "")
-      if (html.length < 80 || isBlockedPage(html)) {
-        lastError = "空页面或验证页面"
-        continue
-      }
-      $cache.set("wanou_aggregate_domain_" + site.id, baseUrl)
-      return { html: html, baseUrl: baseUrl, url: url }
+      const latency = Date.now() - startedAt
+      const html = responseHtml(response)
+      if (!validSitePage(html, kind)) throw new Error("页面不含所需站点内容")
+      return { html: html, baseUrl: baseUrl, url: url, latency: latency }
     } catch (e) {
       lastError = e && e.message ? e.message : String(e)
+      return null
     }
   }
 
+  if (!force && state && state.candidates === domains.join("|") &&
+    Date.now() - state.checkedAt < MIRROR_CACHE_INTERVAL && Array.isArray(state.order) && state.order.length) {
+    const result = await probe(state.order[0])
+    if (result) return result
+  }
+
+  async function selectBest(candidates) {
+    const results = await mapLimit(candidates, 3, probe)
+    const available = results.filter(Boolean).sort(function (a, b) { return a.latency - b.latency })
+    if (!available.length) return null
+    $cache.set(cacheKey, JSON.stringify({
+      checkedAt: Date.now(), candidates: domains.join("|"),
+      order: available.map(function (item) { return item.baseUrl })
+    }))
+    $cache.set("wanou_aggregate_domain_" + site.id, available[0].baseUrl)
+    return available[0]
+  }
+
+  let best = await selectBest(domains.filter(function (url) { return attempted.indexOf(url) < 0 }))
+  if (best) return best
+  // 已知镜像全失效时提前拉取目录；一分钟内的并发失败共用更新结果。
+  if (AUTO_UPDATE_DOMAINS) {
+    const latest = readCache(MONITOR_CACHE_KEY) || snapshot
+    snapshot = Date.now() - (latest.attemptedAt || 0) >= 60000 ? await refreshMonitor(true) : latest
+    domains = siteDomains(site, snapshot)
+    best = await selectBest(domains.filter(function (url) { return attempted.indexOf(url) < 0 }))
+    if (best) return best
+  }
   throw new Error(site.name + "所有域名请求失败" + (lastError ? "：" + lastError : ""))
 }
 
@@ -226,8 +385,11 @@ function parseCardList(site, html, baseUrl, selector, sourceLabel) {
     const pic = absUrl(baseUrl,
       image.attr("data-src") || image.attr("data-original") || image.attr("data-lazy-src") || image.attr("src") || "")
     const remark = item.find(".module-item-text, .module-item-note").first().text().replace(/\s+/g, " ").trim()
-    const year = item.find(".module-item-caption span").first().text().trim()
-    const sourceRemark = sourceLabel ? site.name + (remark ? " · " + remark : "") : remark
+    const yearText = item.find(".video-info-aux a[href*='/year/']").first().text() ||
+      item.find(".module-item-caption span").first().text()
+    const yearMatch = yearText.match(/\b(?:19|20)\d{2}\b/)
+    const year = yearMatch ? yearMatch[0] : ""
+    const sourceRemark = sourceLabel ? site.name + (year ? " · " + year : "") + (remark ? " · " + remark : "") : remark
 
     list.push({
       vod_id: site.id + ":" + href,
@@ -245,22 +407,38 @@ function parseCardList(site, html, baseUrl, selector, sourceLabel) {
   return list
 }
 
+function pageCount(html, page) {
+  const $ = cheerio.load(html)
+  let count = 0
+  $("#page a[href]").each(function (_, el) {
+    const href = $(el).attr("href") || ""
+    const match = href.match(/\/page\/(\d+)|[?&]page=(\d+)|-(\d+)---\.html(?:[?#]|$)/i)
+    const number = match ? Number(match[1] || match[2] || match[3]) : Number($(el).text().trim())
+    if (number > count) count = number
+  })
+  return count || Math.max(1, page)
+}
+
 async function fetchCategory(site, categoryId, page) {
   try {
-    const result = await requestSite(site, categoryPath(site, categoryId, page), REQUEST_TIMEOUT)
-    return parseCardList(site, result.html, result.baseUrl, site.listSelector, false)
+    const result = await requestSite(site, categoryPath(site, categoryId, page), REQUEST_TIMEOUT, "category")
+    const count = pageCount(result.html, page)
+    return {
+      list: page > count ? [] : parseCardList(site, result.html, result.baseUrl, site.listSelector, false),
+      pagecount: count
+    }
   } catch (e) {
     print("分类失败 " + site.name + "：" + e.message)
-    return []
+    return { list: [], pagecount: page }
   }
 }
 
-async function fetchHome(site) {
+async function fetchHome(site, force) {
   try {
-    const result = await requestSite(site, "/", REQUEST_TIMEOUT)
+    const result = await requestSite(site, "/", REQUEST_TIMEOUT, "home", force)
     const $ = cheerio.load(result.html)
     let selector = ".module:first .module-item"
-    if (!$(selector).length) selector = site.listSelector || ".module-item"
+    if (!$(selector).length) selector = ".module-item"
     return parseCardList(site, result.html, result.baseUrl, selector, true).slice(0, 30)
   } catch (e) {
     print("推荐失败 " + site.name + "：" + e.message)
@@ -270,16 +448,17 @@ async function fetchHome(site) {
 
 async function fetchSearch(site, keyword, page) {
   try {
-    const result = await requestSite(site, searchPath(site, keyword, page), SEARCH_TIMEOUT)
+    const result = await requestSite(site, searchPath(site, keyword, page), SEARCH_TIMEOUT, "search")
+    const count = pageCount(result.html, page)
     let list = parseCardList(site, result.html, result.baseUrl, site.searchListSelector || ".module-search-item", true)
     const normalizedKeyword = String(keyword || "").toLowerCase().trim()
     list = list.filter(function (card) {
       return String(card.vod_name || "").toLowerCase().indexOf(normalizedKeyword) >= 0
     })
-    return list
+    return { list: page > count ? [] : list, pagecount: count }
   } catch (e) {
     print("搜索失败 " + site.name + "：" + e.message)
-    return []
+    return { list: [], pagecount: page }
   }
 }
 
@@ -325,7 +504,13 @@ function aggregateCards(cards) {
 
     for (let j = 0; j < groups.length; j++) {
       if (groups[j].titleKey !== titleKey) continue
-      if (groups[j].year && year && groups[j].year !== year) continue
+      if (groups[j].year && year) {
+        if (groups[j].year !== year) continue
+      } else {
+        // 年份未知时，只有相同站点的同一详情地址才能确认是同一作品。
+        const existing = groups[j].card.ext.sources.map(sourceKey)
+        if (!(card.ext.sources || []).some(function (source) { return existing.indexOf(sourceKey(source)) >= 0 })) continue
+      }
       group = groups[j]
       break
     }
@@ -347,7 +532,10 @@ function aggregateCards(cards) {
       groups.push(group)
     } else {
       appendSources(group.card.ext.sources, card.ext.sources || [])
-      if (!group.year && year) group.year = year
+      if (!group.year && year) {
+        group.year = year
+        group.card.ext.year = year
+      }
     }
   }
 
@@ -356,7 +544,8 @@ function aggregateCards(cards) {
     const item = groups[k].card
     const names = sourceNames(item.ext.sources)
     item.vod_id = item.ext.sources.length > 1 ? "agg:" + groups[k].titleKey + ":" + groups[k].year : item.vod_id
-    item.vod_remarks = names.join("/") + (names.length > 1 ? " · " + names.length + "站" : "")
+    item.vod_remarks = names.join("/") + (groups[k].year ? " · " + groups[k].year : "") +
+      (names.length > 1 ? " · " + names.length + "站" : "")
     result.push(item)
   }
   return result
@@ -412,7 +601,7 @@ function normalizePanUrl(value) {
 }
 
 function extractHttpUrls(value) {
-  return String(value || "").match(/https?:\/\/[^\s"'<>（）【】]+/ig) || []
+  return String(value || "").match(/https?:\/\/[^\s"'<>\\\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+/ig) || []
 }
 
 function collectCandidateUrls(value, target) {
@@ -429,26 +618,24 @@ function parsePanUrls(html) {
   const rows = $(".module-row-one")
 
   function collectBox(box) {
-    const candidates = [
-      box.attr("data-link"),
-      box.attr("data-clipboard-text"),
-      box.find("[data-link]").first().attr("data-link"),
-      box.find("[data-clipboard-text]").first().attr("data-clipboard-text"),
-      box.find("a.btn-down[href^='http']").first().attr("href"),
-      box.find("a[href^='http']").first().attr("href"),
-      box.find(".module-row-title p").first().text(),
-      box.text()
-    ]
-    for (let i = 0; i < candidates.length; i++) collectCandidateUrls(candidates[i], urls)
+    const start = urls.length
+    function collectAttributes(node) {
+      collectCandidateUrls(node.attr("href"), urls)
+      collectCandidateUrls(node.attr("data-link"), urls)
+      collectCandidateUrls(node.attr("data-clipboard-text"), urls)
+    }
+    collectAttributes(box)
+    box.find("[data-link], [data-clipboard-text], a[href^='http']").each(function (_, el) {
+      collectAttributes($(el))
+    })
+    // 正文只用于没有链接属性的旧页面，避免把相邻按钮文字拼入 URL。
+    if (urls.length === start) collectCandidateUrls(box.text(), urls)
   }
 
-  if (rows.length) {
-    rows.each(function (_, el) { collectBox($(el)) })
-  } else {
-    $(".module-row-info, [data-clipboard-text], [data-link], a.btn-down[href^='http']").each(function (_, el) {
-      collectBox($(el))
-    })
-  }
+  rows.each(function (_, el) { collectBox($(el)) })
+  $(".module-row-info, [data-clipboard-text], [data-link], a.btn-down[href^='http']").each(function (_, el) {
+    if (!$(el).closest(".module-row-one").length) collectBox($(el))
+  })
 
   const unique = uniqueStrings(urls)
   unique.sort(function (a, b) { return providerPriority(a) - providerPriority(b) })
@@ -459,7 +646,7 @@ async function fetchDetailSource(source) {
   const site = siteById(source.siteId)
   if (!site || !source.path) return null
   try {
-    const result = await requestSite(site, source.path, REQUEST_TIMEOUT)
+    const result = await requestSite(site, source.path, REQUEST_TIMEOUT, "detail")
     return { site: site, urls: parsePanUrls(result.html) }
   } catch (e) {
     print("详情失败 " + site.name + "：" + e.message)
@@ -477,10 +664,11 @@ async function getConfig() {
   for (let i = 0; i < sites.length; i++) {
     tabs.push({ name: sites[i].name, ext: { id: "site:" + sites[i].id } })
   }
+  tabs.push({ name: "更新网址", ext: { id: "update-domains" } })
   return jsonify({
     ver: 1,
     title: "玩偶聚合",
-    site: sites.length ? sites[0].domains[0] : "",
+    site: sites.length ? ($cache.get("wanou_aggregate_domain_" + sites[0].id) || sites[0].domains[0]) : "",
     tabs: tabs
   })
 }
@@ -492,8 +680,8 @@ async function getCards(ext) {
   const id = String(ext.id || "recommend")
   const sites = enabledSites()
 
-  if (id === "recommend") {
-    const selectedId = String(filters.site || "all")
+  if (id === "recommend" || id === "update-domains") {
+    const selectedId = id === "update-domains" ? "all" : String(filters.site || "all")
     let selectedSites = []
     if (selectedId === "all") selectedSites = sites.slice(0, RECOMMEND_SITE_LIMIT)
     else {
@@ -501,15 +689,30 @@ async function getCards(ext) {
       if (selected && sites.indexOf(selected) >= 0) selectedSites = [selected]
     }
 
-    const tasks = selectedSites.map(function (site) { return fetchHome(site) })
-    const nested = await Promise.all(tasks)
+    let nested
+    if (id === "update-domains" && page === 1) {
+      const snapshot = await refreshMonitor(true)
+      const checked = await mapLimit(sites, 3, function (site) { return fetchHome(site, true) })
+      nested = checked.slice(0, RECOMMEND_SITE_LIMIT)
+      const updated = sites.filter(function (site) { return snapshot.sites && snapshot.sites[site.id] }).length
+      const available = checked.filter(function (list) { return list.length > 0 }).length
+      const message = (snapshot.error ? "网址更新失败，沿用已保存地址" : "已拉取 " + updated + " 站网址") +
+        "；已检测 " + sites.length + " 站，" + available + " 站有可用内容"
+      print(message)
+      try {
+        if (snapshot.error) $utils.toastError(message)
+        else $utils.toastInfo(message)
+      } catch (e) {}
+    } else {
+      nested = await mapLimit(selectedSites, 3, function (site) { return fetchHome(site) })
+    }
     let cards = []
     for (let i = 0; i < nested.length; i++) cards = cards.concat(nested[i])
     cards = aggregateCards(cards)
     const start = (page - 1) * RECOMMEND_PAGE_SIZE
     return jsonify({
       list: cards.slice(start, start + RECOMMEND_PAGE_SIZE),
-      filter: recommendFilter(sites),
+      filter: id === "recommend" ? recommendFilter(sites) : [],
       page: page,
       pagecount: Math.max(1, Math.ceil(cards.length / RECOMMEND_PAGE_SIZE))
     })
@@ -522,12 +725,12 @@ async function getCards(ext) {
     const validIds = site.categories.map(function (item) { return item[0] })
     if (validIds.indexOf(categoryId) < 0) categoryId = validIds.length ? validIds[0] : ""
     if (!categoryId) return jsonify({ list: [], filter: categoryFilter(site) })
-    const list = await fetchCategory(site, categoryId, page)
+    const result = await fetchCategory(site, categoryId, page)
     return jsonify({
-      list: list,
+      list: result.list,
       filter: categoryFilter(site),
       page: page,
-      pagecount: list.length >= 20 ? page + 1 : page
+      pagecount: result.pagecount
     })
   }
 
@@ -540,8 +743,7 @@ async function getTracks(ext) {
   if (!sources.length && ext.siteId && ext.path) sources = [{ siteId: ext.siteId, path: ext.path }]
   if (!sources.length) return jsonify({ list: [] })
 
-  const tasks = sources.map(function (source) { return fetchDetailSource(source) })
-  const details = await Promise.all(tasks)
+  const details = await mapLimit(sources, 3, fetchDetailSource)
   const used = {}
   const groups = []
 
@@ -581,12 +783,15 @@ async function search(ext) {
   if (!keyword) return jsonify({ list: [] })
 
   const sites = enabledSites()
-  const tasks = sites.map(function (site) { return fetchSearch(site, keyword, page) })
-  const nested = await Promise.all(tasks)
+  const nested = await mapLimit(sites, 3, function (site) { return fetchSearch(site, keyword, page) })
   let cards = []
-  for (let i = 0; i < nested.length; i++) cards = cards.concat(nested[i])
+  let count = page
+  for (let i = 0; i < nested.length; i++) {
+    cards = cards.concat(nested[i].list)
+    count = Math.max(count, nested[i].pagecount)
+  }
 
   const aggregate = $config.aggregateSearch !== false && String($config.aggregateSearch || "true") !== "false"
   if (aggregate) cards = aggregateCards(cards)
-  return jsonify({ list: cards, page: page, pagecount: 1 })
+  return jsonify({ list: cards, page: page, pagecount: count })
 }
