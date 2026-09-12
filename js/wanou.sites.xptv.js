@@ -14,13 +14,12 @@ const MIRROR_CACHE_INTERVAL = Math.max(1, Number($config.mirrorCacheMinutes) || 
 const AUTO_UPDATE_DOMAINS = $config.autoUpdateDomains !== false && $config.autoUpdateDomains !== "false"
 let monitorTask = null
 
-// 顺序同时作为站点优先级。配置源自“玩偶聚合.js”的 DEFAULT_SITES/sitePriority。
+// 唯一的站点清单；顺序同时作为推荐与聚合的优先级。
 const SITES = [
   {
     id: "muou",
     name: "木偶",
     domains: ["https://666.666291.xyz", "https://123.666291.xyz", "https://www.muou.site", "https://www.muou.asia"],
-    listSelector: "#main .module-item",
     categories: [["25", "臻选"], ["1", "电影"], ["2", "电视剧"], ["3", "动漫"], ["4", "纪录片"], ["29", "综艺"], ["30", "原盘"]]
   },
   {
@@ -33,59 +32,27 @@ const SITES = [
     categories: [["44", "臻彩"], ["1", "电影"], ["2", "电视剧"], ["3", "动漫"], ["4", "综艺"], ["5", "音乐"], ["6", "短剧"], ["46", "纪录片"]]
   },
   {
-    id: "labi",
-    name: "蜡笔",
-    domains: ["http://feimo.fun", "http://www.xiaocgege.shop", "http://xiaocgege.shop"],
-    listSelector: "#main .module-item",
-    categories: [["29", "臻彩"], ["1", "电影"], ["2", "电视剧"], ["3", "动漫"], ["4", "综艺"], ["5", "短剧"], ["24", "蜡笔4K"]]
-  },
-  {
-    id: "zhizhen",
-    name: "至臻",
-    domains: ["http://www.miqk.cc", "https://www.mihdr.top", "https://mihdr.top", "https://zhizhen1.top"],
-    listSelector: "#main .module-item",
-    categories: [["26", "臻彩"], ["1", "电影"], ["2", "电视剧"], ["3", "动漫"], ["4", "综艺"], ["5", "短剧"], ["24", "老剧"]]
-  },
-  {
-    id: "erxiao",
-    name: "二小",
-    domains: ["https://wexwp.cc", "https://www.wexwp.cc", "https://www.2xiaopan.top"],
-    listSelector: "#main .module-item",
-    categories: [["4", "臻彩"], ["1", "电影"], ["2", "电视剧"], ["3", "动漫"], ["21", "综艺"]]
-  },
-  {
-    id: "huban",
-    name: "虎斑",
-    domains: ["http://121.205.88.174:16969"],
-    listSelector: "#main .module-item",
-    categories: [["6", "臻彩"], ["1", "电影"], ["2", "电视剧"], ["3", "综艺"], ["4", "动漫"], ["5", "短剧"], ["30", "115网盘"]]
-  },
-  {
     id: "kuaiying",
     name: "快映",
     domains: ["http://xsayang.fun:12512", "http://154.201.83.50:12512"],
-    listSelector: "#main .module-item",
     categories: [["5", "臻彩"], ["1", "电影"], ["2", "电视剧"], ["3", "综艺"], ["4", "动漫"], ["6", "短剧"], ["30", "115"], ["35", "123"], ["36", "天移迅"]]
   },
   {
     id: "shandian",
     name: "闪电",
     domains: ["http://shandian.blog", "https://sd.sduc.site"],
-    listSelector: "#main .module-item",
     categories: [["1", "电影"], ["2", "电视剧"], ["3", "综艺"], ["4", "动漫"], ["30", "短剧"]]
   },
   {
     id: "ouge",
     name: "欧哥",
     domains: ["https://woog.nxog.fun", "https://woog.nxog.eu.org", "https://woog.430520.xyz"],
-    listSelector: "#main .module-item",
     categories: [["1", "电影"], ["2", "电视剧"], ["3", "动漫"], ["4", "综艺"], ["5", "短剧"], ["21", "综合"]]
   },
   {
     id: "duoduo",
     name: "多多",
     domains: ["https://tv.214521.xyz", "https://yydsys.de5.net", "https://tv.yydsys.cc", "https://tv.yydsys.top"],
-    listSelector: "#main .module-item",
     categories: [["1", "电影"], ["2", "剧集"], ["4", "动漫"], ["5", "短剧"], ["3", "综艺"], ["20", "纪录"]]
   }
 ]
@@ -118,26 +85,16 @@ function uniqueStrings(values) {
   return result
 }
 
-function siteById(id) {
-  for (let i = 0; i < SITES.length; i++) {
-    if (SITES[i].id === id) return SITES[i]
-  }
-  return null
-}
-
-function configuredSiteIds() {
-  const raw = $config.enabledSites
-  if (Array.isArray(raw)) return raw.map(function (item) { return String(item) })
-  if (typeof raw === "string" && raw.trim()) {
-    return raw.split(",").map(function (item) { return item.trim() }).filter(Boolean)
-  }
-  return []
-}
-
 function enabledSites() {
-  const ids = configuredSiteIds()
+  const raw = $config.enabledSites
+  const ids = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [])
+    .map(function (id) { return String(id).trim() }).filter(Boolean)
   if (!ids.length) return SITES.slice()
   return SITES.filter(function (site) { return ids.indexOf(site.id) >= 0 })
+}
+
+function enabledSiteById(id) {
+  return enabledSites().find(function (site) { return site.id === id }) || null
 }
 
 function readCache(key) {
@@ -256,7 +213,7 @@ function isBlockedPage(html) {
 function responseHtml(response) {
   checkStatus(response)
   let html = response.data
-  // 二小、闪电的部分镜像返回 JSON 编码的 HTML 字符串。
+  // 闪电的部分镜像返回 JSON 编码的 HTML 字符串。
   if (typeof html === "string" && html.trim().charAt(0) === '"') {
     try { html = JSON.parse(html) } catch (e) {}
   }
@@ -264,8 +221,7 @@ function responseHtml(response) {
   return html
 }
 
-function validSitePage(html, kind) {
-  const $ = cheerio.load(html)
+function validSitePage($, kind) {
   if (kind === "detail") {
     return $(".module-info-heading, .module-row-one, .module-row-info, [data-clipboard-text], [data-link], a.btn-down[href^='http']").length > 0
   }
@@ -305,9 +261,9 @@ async function requestSite(site, requestPath, timeout, kind, force) {
         timeout: timeout || REQUEST_TIMEOUT
       })
       const latency = Date.now() - startedAt
-      const html = responseHtml(response)
-      if (!validSitePage(html, kind)) throw new Error("页面不含所需站点内容")
-      return { html: html, baseUrl: baseUrl, url: url, latency: latency }
+      const $ = cheerio.load(responseHtml(response))
+      if (!validSitePage($, kind)) throw new Error("页面不含所需站点内容")
+      return { $: $, baseUrl: baseUrl, latency: latency }
     } catch (e) {
       lastError = e && e.message ? e.message : String(e)
       return null
@@ -363,14 +319,9 @@ function searchPath(site, keyword, page) {
   return "/index.php/vod/search/page/" + page + "/wd/" + encodeURIComponent(keyword) + ".html"
 }
 
-function cardSource(site, path) {
-  return { siteId: site.id, path: String(path || "") }
-}
-
-function parseCardList(site, html, baseUrl, selector, sourceLabel) {
-  const $ = cheerio.load(String(html || ""))
+function parseCardList(site, $, baseUrl, selector, sourceLabel) {
   const list = []
-  const itemSelector = selector || site.listSelector || ".module-item"
+  const itemSelector = selector || site.listSelector || "#main .module-item"
 
   $(itemSelector).each(function (_, el) {
     const item = $(el)
@@ -379,7 +330,8 @@ function parseCardList(site, html, baseUrl, selector, sourceLabel) {
     const serialLink = item.find(".video-serial").first()
     const image = item.find(".module-item-pic img, img.lazyload, img").first()
     const href = serialLink.attr("href") || pictureLink.attr("href") || titleLink.attr("href") || ""
-    const name = serialLink.attr("title") || image.attr("alt") || titleLink.attr("title") || titleLink.text().trim()
+    const name = (serialLink.attr("title") || image.attr("alt") || titleLink.attr("title") || titleLink.text())
+      .replace(/\s+/g, " ").trim()
     if (!href || !name) return
 
     const pic = absUrl(baseUrl,
@@ -393,13 +345,13 @@ function parseCardList(site, html, baseUrl, selector, sourceLabel) {
 
     list.push({
       vod_id: site.id + ":" + href,
-      vod_name: name.replace(/\s+/g, " ").trim(),
+      vod_name: name,
       vod_pic: pic,
       vod_remarks: sourceRemark,
       ext: {
-        title: name.replace(/\s+/g, " ").trim(),
+        title: name,
         year: year,
-        sources: [cardSource(site, href)]
+        sources: [{ siteId: site.id, path: href }]
       }
     })
   })
@@ -407,8 +359,7 @@ function parseCardList(site, html, baseUrl, selector, sourceLabel) {
   return list
 }
 
-function pageCount(html, page) {
-  const $ = cheerio.load(html)
+function pageCount($, page) {
   let count = 0
   $("#page a[href]").each(function (_, el) {
     const href = $(el).attr("href") || ""
@@ -419,16 +370,20 @@ function pageCount(html, page) {
   return count || Math.max(1, page)
 }
 
-async function fetchCategory(site, categoryId, page) {
+async function fetchCardPage(site, path, page, kind, keyword) {
   try {
-    const result = await requestSite(site, categoryPath(site, categoryId, page), REQUEST_TIMEOUT, "category")
-    const count = pageCount(result.html, page)
-    return {
-      list: page > count ? [] : parseCardList(site, result.html, result.baseUrl, site.listSelector, false),
-      pagecount: count
+    const searching = kind === "search"
+    const result = await requestSite(site, path, searching ? SEARCH_TIMEOUT : REQUEST_TIMEOUT, kind)
+    const count = pageCount(result.$, page)
+    let list = page > count ? [] : parseCardList(site, result.$, result.baseUrl,
+      searching ? ".module-search-item" : site.listSelector, searching)
+    if (searching) {
+      const text = keyword.toLowerCase()
+      list = list.filter(function (card) { return card.vod_name.toLowerCase().indexOf(text) >= 0 })
     }
+    return { list: list, pagecount: count }
   } catch (e) {
-    print("分类失败 " + site.name + "：" + e.message)
+    print((kind === "search" ? "搜索" : "分类") + "失败 " + site.name + "：" + e.message)
     return { list: [], pagecount: page }
   }
 }
@@ -436,29 +391,13 @@ async function fetchCategory(site, categoryId, page) {
 async function fetchHome(site, force) {
   try {
     const result = await requestSite(site, "/", REQUEST_TIMEOUT, "home", force)
-    const $ = cheerio.load(result.html)
+    const $ = result.$
     let selector = ".module:first .module-item"
     if (!$(selector).length) selector = ".module-item"
-    return parseCardList(site, result.html, result.baseUrl, selector, true).slice(0, 30)
+    return parseCardList(site, $, result.baseUrl, selector, true).slice(0, 30)
   } catch (e) {
     print("推荐失败 " + site.name + "：" + e.message)
     return []
-  }
-}
-
-async function fetchSearch(site, keyword, page) {
-  try {
-    const result = await requestSite(site, searchPath(site, keyword, page), SEARCH_TIMEOUT, "search")
-    const count = pageCount(result.html, page)
-    let list = parseCardList(site, result.html, result.baseUrl, site.searchListSelector || ".module-search-item", true)
-    const normalizedKeyword = String(keyword || "").toLowerCase().trim()
-    list = list.filter(function (card) {
-      return String(card.vod_name || "").toLowerCase().indexOf(normalizedKeyword) >= 0
-    })
-    return { list: page > count ? [] : list, pagecount: count }
-  } catch (e) {
-    print("搜索失败 " + site.name + "：" + e.message)
-    return { list: [], pagecount: page }
   }
 }
 
@@ -477,17 +416,19 @@ function appendSources(target, incoming) {
   const used = {}
   for (let i = 0; i < target.length; i++) used[sourceKey(target[i])] = true
   for (let j = 0; j < incoming.length && target.length < MAX_AGGREGATE_SITES; j++) {
-    const key = sourceKey(incoming[j])
-    if (!key || used[key]) continue
+    const source = incoming[j]
+    if (!source || !enabledSiteById(source.siteId) || typeof source.path !== "string" || !source.path.trim()) continue
+    const key = sourceKey(source)
+    if (used[key]) continue
     used[key] = true
-    target.push(incoming[j])
+    target.push({ siteId: source.siteId, path: source.path })
   }
 }
 
 function sourceNames(sources) {
   const names = []
   for (let i = 0; i < sources.length; i++) {
-    const site = siteById(sources[i].siteId)
+    const site = enabledSiteById(sources[i].siteId)
     if (site && names.indexOf(site.name) < 0) names.push(site.name)
   }
   return names
@@ -495,23 +436,24 @@ function sourceNames(sources) {
 
 function aggregateCards(cards) {
   const groups = []
+  const byTitle = new Map()
 
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i]
     const titleKey = normalizedTitle(card.vod_name)
     const year = String(card.ext && card.ext.year || "").trim()
+    const candidates = byTitle.get(titleKey) || []
     let group = null
 
-    for (let j = 0; j < groups.length; j++) {
-      if (groups[j].titleKey !== titleKey) continue
-      if (groups[j].year && year) {
-        if (groups[j].year !== year) continue
+    for (let j = 0; j < candidates.length; j++) {
+      if (candidates[j].year && year) {
+        if (candidates[j].year !== year) continue
       } else {
         // 年份未知时，只有相同站点的同一详情地址才能确认是同一作品。
-        const existing = groups[j].card.ext.sources.map(sourceKey)
+        const existing = candidates[j].card.ext.sources.map(sourceKey)
         if (!(card.ext.sources || []).some(function (source) { return existing.indexOf(sourceKey(source)) >= 0 })) continue
       }
-      group = groups[j]
+      group = candidates[j]
       break
     }
 
@@ -530,6 +472,8 @@ function aggregateCards(cards) {
       appendSources(primary.ext.sources, card.ext.sources || [])
       group = { titleKey: titleKey, year: year, card: primary }
       groups.push(group)
+      candidates.push(group)
+      byTitle.set(titleKey, candidates)
     } else {
       appendSources(group.card.ext.sources, card.ext.sources || [])
       if (!group.year && year) {
@@ -552,21 +496,16 @@ function aggregateCards(cards) {
 }
 
 function categoryFilter(site) {
-  const values = []
-  for (let i = 0; i < site.categories.length; i++) {
-    values.push({ n: site.categories[i][1], v: site.categories[i][0] })
-  }
   return [{
     key: "categoryId",
     name: "分类",
     init: site.categories.length ? site.categories[0][0] : "",
-    value: values
+    value: site.categories.map(function (item) { return { n: item[1], v: item[0] } })
   }]
 }
 
 function recommendFilter(sites) {
-  const values = [{ n: "全部", v: "all" }]
-  for (let i = 0; i < sites.length; i++) values.push({ n: sites[i].name, v: sites[i].id })
+  const values = [{ n: "全部", v: "all" }].concat(sites.map(function (site) { return { n: site.name, v: site.id } }))
   return [{ key: "site", name: "来源", init: "all", value: values }]
 }
 
@@ -612,8 +551,7 @@ function collectCandidateUrls(value, target) {
   }
 }
 
-function parsePanUrls(html) {
-  const $ = cheerio.load(String(html || ""))
+function parsePanUrls($) {
   const urls = []
   const rows = $(".module-row-one")
 
@@ -643,11 +581,11 @@ function parsePanUrls(html) {
 }
 
 async function fetchDetailSource(source) {
-  const site = siteById(source.siteId)
+  const site = enabledSiteById(source.siteId)
   if (!site || !source.path) return null
   try {
     const result = await requestSite(site, source.path, REQUEST_TIMEOUT, "detail")
-    return { site: site, urls: parsePanUrls(result.html) }
+    return { site: site, urls: parsePanUrls(result.$) }
   } catch (e) {
     print("详情失败 " + site.name + "：" + e.message)
     return null
@@ -682,12 +620,8 @@ async function getCards(ext) {
 
   if (id === "recommend" || id === "update-domains") {
     const selectedId = id === "update-domains" ? "all" : String(filters.site || "all")
-    let selectedSites = []
-    if (selectedId === "all") selectedSites = sites.slice(0, RECOMMEND_SITE_LIMIT)
-    else {
-      const selected = siteById(selectedId)
-      if (selected && sites.indexOf(selected) >= 0) selectedSites = [selected]
-    }
+    const selectedSites = selectedId === "all" ? sites.slice(0, RECOMMEND_SITE_LIMIT) :
+      sites.filter(function (site) { return site.id === selectedId })
 
     let nested
     if (id === "update-domains" && page === 1) {
@@ -719,13 +653,13 @@ async function getCards(ext) {
   }
 
   if (id.indexOf("site:") === 0) {
-    const site = siteById(id.substring(5))
+    const site = enabledSiteById(id.substring(5))
     if (!site) return jsonify({ list: [], filter: [] })
     let categoryId = String(filters.categoryId || (site.categories[0] ? site.categories[0][0] : ""))
     const validIds = site.categories.map(function (item) { return item[0] })
     if (validIds.indexOf(categoryId) < 0) categoryId = validIds.length ? validIds[0] : ""
     if (!categoryId) return jsonify({ list: [], filter: categoryFilter(site) })
-    const result = await fetchCategory(site, categoryId, page)
+    const result = await fetchCardPage(site, categoryPath(site, categoryId, page), page, "category")
     return jsonify({
       list: result.list,
       filter: categoryFilter(site),
@@ -739,8 +673,9 @@ async function getCards(ext) {
 
 async function getTracks(ext) {
   ext = argsify(ext)
-  let sources = Array.isArray(ext.sources) ? ext.sources.slice(0, MAX_AGGREGATE_SITES) : []
-  if (!sources.length && ext.siteId && ext.path) sources = [{ siteId: ext.siteId, path: ext.path }]
+  const sources = []
+  appendSources(sources, Array.isArray(ext.sources) ? ext.sources : [])
+  if (!sources.length) appendSources(sources, [ext])
   if (!sources.length) return jsonify({ list: [] })
 
   const details = await mapLimit(sources, 3, fetchDetailSource)
@@ -783,7 +718,9 @@ async function search(ext) {
   if (!keyword) return jsonify({ list: [] })
 
   const sites = enabledSites()
-  const nested = await mapLimit(sites, 3, function (site) { return fetchSearch(site, keyword, page) })
+  const nested = await mapLimit(sites, 3, function (site) {
+    return fetchCardPage(site, searchPath(site, keyword, page), page, "search", keyword)
+  })
   let cards = []
   let count = page
   for (let i = 0; i < nested.length; i++) {
