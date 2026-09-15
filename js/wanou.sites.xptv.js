@@ -44,12 +44,6 @@ const SITES = [
     categories: [["1", "电影"], ["2", "电视剧"], ["3", "综艺"], ["4", "动漫"], ["30", "短剧"]]
   },
   {
-    id: "ouge",
-    name: "欧哥",
-    domains: ["https://woog.nxog.fun", "https://woog.nxog.eu.org", "https://woog.430520.xyz"],
-    categories: [["1", "电影"], ["2", "电视剧"], ["3", "动漫"], ["4", "综艺"], ["5", "短剧"], ["21", "综合"]]
-  },
-  {
     id: "duoduo",
     name: "多多",
     domains: ["https://tv.214521.xyz", "https://yydsys.de5.net", "https://tv.yydsys.cc", "https://tv.yydsys.top"],
