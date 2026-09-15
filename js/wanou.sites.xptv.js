@@ -5,6 +5,8 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const REQUEST_TIMEOUT = parseInt($config.timeout, 10) || 8000
 const SEARCH_TIMEOUT = parseInt($config.searchTimeout, 10) || 7000
 const RECOMMEND_PAGE_SIZE = 40
+const RECOMMEND_CACHE_PREFIX = "wanou_aggregate_recommend_v1:"
+const RECOMMEND_CACHE_INTERVAL = 5 * 60000
 const RECOMMEND_SITE_LIMIT = Math.max(1, parseInt($config.recommendSiteLimit, 10) || 5)
 const MAX_AGGREGATE_SITES = Math.max(1, parseInt($config.maxAggregateSites, 10) || 5)
 const MONITOR_URL = "https://site.920410.xyz"
@@ -51,12 +53,18 @@ const SITES = [
   }
 ]
 
+const enabledIds = (Array.isArray($config.enabledSites) ? $config.enabledSites :
+  typeof $config.enabledSites === "string" ? $config.enabledSites.split(",") : [])
+  .map(function (id) { return String(id).trim() }).filter(Boolean)
+const ACTIVE_SITES = SITES.filter(function (site) { return !enabledIds.length || enabledIds.indexOf(site.id) >= 0 })
+const SITE_INDEX = new Map(ACTIVE_SITES.map(function (site) { return [site.id, site] }))
+const RECOMMEND_SIGNATURE = JSON.stringify([
+  ACTIVE_SITES.map(function (site) { return site.id }), RECOMMEND_SITE_LIMIT,
+  MAX_AGGREGATE_SITES, $config.domains || {}, REQUEST_TIMEOUT, AUTO_UPDATE_DOMAINS
+])
+
 function print(message) {
   try { $print("[玩偶聚合] " + message) } catch (e) {}
-}
-
-function trimSlash(value) {
-  return String(value || "").replace(/\/+$/, "")
 }
 
 function absUrl(baseUrl, value) {
@@ -64,31 +72,11 @@ function absUrl(baseUrl, value) {
   if (!url) return ""
   if (/^https?:\/\//i.test(url)) return url
   if (url.indexOf("//") === 0) return "https:" + url
-  return trimSlash(baseUrl) + (url.charAt(0) === "/" ? url : "/" + url)
+  return baseUrl + (url.charAt(0) === "/" ? url : "/" + url)
 }
 
 function uniqueStrings(values) {
-  const result = []
-  const used = {}
-  for (let i = 0; i < values.length; i++) {
-    const value = String(values[i] || "").trim()
-    if (!value || used[value]) continue
-    used[value] = true
-    result.push(value)
-  }
-  return result
-}
-
-function enabledSites() {
-  const raw = $config.enabledSites
-  const ids = (Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [])
-    .map(function (id) { return String(id).trim() }).filter(Boolean)
-  if (!ids.length) return SITES.slice()
-  return SITES.filter(function (site) { return ids.indexOf(site.id) >= 0 })
-}
-
-function enabledSiteById(id) {
-  return enabledSites().find(function (site) { return site.id === id }) || null
+  return Array.from(new Set(values.map(function (value) { return String(value || "").trim() }).filter(Boolean)))
 }
 
 function readCache(key) {
@@ -195,15 +183,6 @@ function siteDomains(site, snapshot) {
     .map(domainUrl).filter(Boolean))
 }
 
-function isBlockedPage(html) {
-  const lower = String(html || "").toLowerCase()
-  return lower.indexOf("just a moment") >= 0 ||
-    lower.indexOf("cf-browser-verification") >= 0 ||
-    lower.indexOf("challenge-platform") >= 0 ||
-    lower.indexOf("access denied") >= 0 ||
-    lower.indexOf("安全验证") >= 0
-}
-
 function responseHtml(response) {
   checkStatus(response)
   let html = response.data
@@ -211,7 +190,9 @@ function responseHtml(response) {
   if (typeof html === "string" && html.trim().charAt(0) === '"') {
     try { html = JSON.parse(html) } catch (e) {}
   }
-  if (typeof html !== "string" || isBlockedPage(html)) throw new Error("空页面或验证页面")
+  if (typeof html !== "string" || /just a moment|cf-browser-verification|challenge-platform|access denied|安全验证/i.test(html)) {
+    throw new Error("空页面或验证页面")
+  }
   return html
 }
 
@@ -266,8 +247,17 @@ async function requestSite(site, requestPath, timeout, kind, force) {
 
   if (!force && state && state.candidates === domains.join("|") &&
     Date.now() - state.checkedAt < MIRROR_CACHE_INTERVAL && Array.isArray(state.order) && state.order.length) {
-    const result = await probe(state.order[0])
-    if (result) return result
+    for (let i = 0; i < state.order.length; i++) {
+      const result = await probe(state.order[i])
+      if (!result) continue
+      if (i > 0) {
+        // 提升可用备用镜像，保留原测速时间，避免延后完整检测。
+        state.order = state.order.slice(i)
+        $cache.set(cacheKey, JSON.stringify(state))
+        $cache.set("wanou_aggregate_domain_" + site.id, result.baseUrl)
+      }
+      return result
+    }
   }
 
   async function selectBest(candidates) {
@@ -343,7 +333,6 @@ function parseCardList(site, $, baseUrl, selector, sourceLabel) {
       vod_pic: pic,
       vod_remarks: sourceRemark,
       ext: {
-        title: name,
         year: year,
         sources: [{ siteId: site.id, path: href }]
       }
@@ -411,7 +400,7 @@ function appendSources(target, incoming) {
   for (let i = 0; i < target.length; i++) used[sourceKey(target[i])] = true
   for (let j = 0; j < incoming.length && target.length < MAX_AGGREGATE_SITES; j++) {
     const source = incoming[j]
-    if (!source || !enabledSiteById(source.siteId) || typeof source.path !== "string" || !source.path.trim()) continue
+    if (!source || !SITE_INDEX.has(source.siteId) || typeof source.path !== "string" || !source.path.trim()) continue
     const key = sourceKey(source)
     if (used[key]) continue
     used[key] = true
@@ -422,7 +411,7 @@ function appendSources(target, incoming) {
 function sourceNames(sources) {
   const names = []
   for (let i = 0; i < sources.length; i++) {
-    const site = enabledSiteById(sources[i].siteId)
+    const site = SITE_INDEX.get(sources[i].siteId)
     if (site && names.indexOf(site.name) < 0) names.push(site.name)
   }
   return names
@@ -452,17 +441,7 @@ function aggregateCards(cards) {
     }
 
     if (!group) {
-      const primary = {
-        vod_id: card.vod_id,
-        vod_name: card.vod_name,
-        vod_pic: card.vod_pic,
-        vod_remarks: card.vod_remarks,
-        ext: {
-          title: card.ext.title,
-          year: year,
-          sources: []
-        }
-      }
+      const primary = Object.assign({}, card, { ext: { year: year, sources: [] } })
       appendSources(primary.ext.sources, card.ext.sources || [])
       group = { titleKey: titleKey, year: year, card: primary }
       groups.push(group)
@@ -503,24 +482,20 @@ function recommendFilter(sites) {
   return [{ key: "site", name: "来源", init: "all", value: values }]
 }
 
-function providerName(url) {
-  const value = String(url || "").toLowerCase()
-  if (value.indexOf("pan.baidu.com") >= 0) return "百度"
-  if (value.indexOf("pan.quark.cn") >= 0 || value.indexOf("quark.cn") >= 0) return "夸克"
-  if (value.indexOf("115.com") >= 0) return "115"
-  if (value.indexOf("cloud.189.cn") >= 0 || value.indexOf("189.cn") >= 0) return "天翼"
-  if (value.indexOf("alipan.com") >= 0 || value.indexOf("aliyundrive.com") >= 0) return "阿里"
-  return "网盘"
-}
+const PAN_PROVIDERS = [
+  { name: "百度", host: /(^|\.)pan\.baidu\.com$/i },
+  { name: "夸克", host: /(^|\.)quark\.cn$/i },
+  { name: "115", host: /(^|\.)115\.com$/i },
+  { name: "天翼", host: /(^|\.)189\.cn$/i },
+  { name: "阿里", host: /(^|\.)(alipan\.com|aliyundrive\.com)$/i }
+]
 
-function providerPriority(url) {
-  const name = providerName(url)
-  if (name === "百度") return 1
-  if (name === "夸克") return 2
-  if (name === "115") return 3
-  if (name === "天翼") return 4
-  if (name === "阿里") return 5
-  return 99
+function panProvider(url) {
+  const host = (String(url || "").match(/^https?:\/\/([^/?#:]+)/i) || [])[1] || ""
+  for (let i = 0; i < PAN_PROVIDERS.length; i++) {
+    if (PAN_PROVIDERS[i].host.test(host)) return { name: PAN_PROVIDERS[i].name, priority: i }
+  }
+  return { name: "网盘", priority: 99 }
 }
 
 function normalizePanUrl(value) {
@@ -533,12 +508,8 @@ function normalizePanUrl(value) {
   )
 }
 
-function extractHttpUrls(value) {
-  return String(value || "").match(/https?:\/\/[^\s"'<>\\\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+/ig) || []
-}
-
 function collectCandidateUrls(value, target) {
-  const values = extractHttpUrls(value)
+  const values = String(value || "").match(/https?:\/\/[^\s"'<>\\\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+/ig) || []
   for (let i = 0; i < values.length; i++) {
     const url = normalizePanUrl(values[i])
     if (url) target.push(url)
@@ -570,12 +541,12 @@ function parsePanUrls($) {
   })
 
   const unique = uniqueStrings(urls)
-  unique.sort(function (a, b) { return providerPriority(a) - providerPriority(b) })
+  unique.sort(function (a, b) { return panProvider(a).priority - panProvider(b).priority })
   return unique
 }
 
 async function fetchDetailSource(source) {
-  const site = enabledSiteById(source.siteId)
+  const site = SITE_INDEX.get(source.siteId)
   if (!site || !source.path) return null
   try {
     const result = await requestSite(site, source.path, REQUEST_TIMEOUT, "detail")
@@ -591,11 +562,9 @@ async function getLocalInfo() {
 }
 
 async function getConfig() {
-  const sites = enabledSites()
-  const tabs = [{ name: "推荐", ext: { id: "recommend" } }]
-  for (let i = 0; i < sites.length; i++) {
-    tabs.push({ name: sites[i].name, ext: { id: "site:" + sites[i].id } })
-  }
+  const sites = ACTIVE_SITES
+  const tabs = [{ name: "推荐", ext: { id: "recommend" } }].concat(
+    sites.map(function (site) { return { name: site.name, ext: { id: "site:" + site.id } } }))
   tabs.push({ name: "更新网址", ext: { id: "update-domains" } })
   return jsonify({
     ver: 1,
@@ -605,38 +574,49 @@ async function getConfig() {
   })
 }
 
+async function updateDomains(sites) {
+  const snapshot = await refreshMonitor(true)
+  const checked = await mapLimit(sites, 3, function (site) { return fetchHome(site, true) })
+  const updated = sites.filter(function (site) { return snapshot.sites && snapshot.sites[site.id] }).length
+  const available = checked.filter(function (list) { return list.length > 0 }).length
+  const message = (snapshot.error ? "网址更新失败，沿用已保存地址" : "已拉取 " + updated + " 站网址") +
+    "；已检测 " + sites.length + " 站，" + available + " 站有可用内容"
+  print(message)
+  try {
+    if (snapshot.error) $utils.toastError(message)
+    else $utils.toastInfo(message)
+  } catch (e) {}
+  const filters = ["all"].concat(SITES.map(function (site) { return site.id }))
+  for (let i = 0; i < filters.length; i++) $cache.del(RECOMMEND_CACHE_PREFIX + "recommend:" + filters[i])
+  $cache.del(RECOMMEND_CACHE_PREFIX + "update-domains:all")
+  return checked
+}
+
 async function getCards(ext) {
   ext = argsify(ext)
   const page = Math.max(1, parseInt(ext.page, 10) || 1)
   const filters = ext.filters || {}
   const id = String(ext.id || "recommend")
-  const sites = enabledSites()
+  const sites = ACTIVE_SITES
 
   if (id === "recommend" || id === "update-domains") {
     const selectedId = id === "update-domains" ? "all" : String(filters.site || "all")
     const selectedSites = selectedId === "all" ? sites.slice(0, RECOMMEND_SITE_LIMIT) :
       sites.filter(function (site) { return site.id === selectedId })
 
-    let nested
-    if (id === "update-domains" && page === 1) {
-      const snapshot = await refreshMonitor(true)
-      const checked = await mapLimit(sites, 3, function (site) { return fetchHome(site, true) })
-      nested = checked.slice(0, RECOMMEND_SITE_LIMIT)
-      const updated = sites.filter(function (site) { return snapshot.sites && snapshot.sites[site.id] }).length
-      const available = checked.filter(function (list) { return list.length > 0 }).length
-      const message = (snapshot.error ? "网址更新失败，沿用已保存地址" : "已拉取 " + updated + " 站网址") +
-        "；已检测 " + sites.length + " 站，" + available + " 站有可用内容"
-      print(message)
-      try {
-        if (snapshot.error) $utils.toastError(message)
-        else $utils.toastInfo(message)
-      } catch (e) {}
+    const cacheKey = RECOMMEND_CACHE_PREFIX + id + ":" + selectedId
+    const cached = page > 1 && readCache(cacheKey)
+    let cards
+    if (cached && cached.signature === RECOMMEND_SIGNATURE &&
+      Date.now() - cached.fetchedAt < RECOMMEND_CACHE_INTERVAL && Array.isArray(cached.list)) {
+      cards = cached.list
     } else {
-      nested = await mapLimit(selectedSites, 3, function (site) { return fetchHome(site) })
+      const nested = id === "update-domains" && page === 1 ?
+        (await updateDomains(sites)).slice(0, RECOMMEND_SITE_LIMIT) :
+        await mapLimit(selectedSites, 3, function (site) { return fetchHome(site) })
+      cards = aggregateCards([].concat.apply([], nested))
+      $cache.set(cacheKey, JSON.stringify({ signature: RECOMMEND_SIGNATURE, fetchedAt: Date.now(), list: cards }))
     }
-    let cards = []
-    for (let i = 0; i < nested.length; i++) cards = cards.concat(nested[i])
-    cards = aggregateCards(cards)
     const start = (page - 1) * RECOMMEND_PAGE_SIZE
     return jsonify({
       list: cards.slice(start, start + RECOMMEND_PAGE_SIZE),
@@ -647,7 +627,7 @@ async function getCards(ext) {
   }
 
   if (id.indexOf("site:") === 0) {
-    const site = enabledSiteById(id.substring(5))
+    const site = SITE_INDEX.get(id.substring(5))
     if (!site) return jsonify({ list: [], filter: [] })
     let categoryId = String(filters.categoryId || (site.categories[0] ? site.categories[0][0] : ""))
     const validIds = site.categories.map(function (item) { return item[0] })
@@ -686,7 +666,7 @@ async function getTracks(ext) {
       const url = detail.urls[j]
       if (used[url]) continue
       used[url] = true
-      const provider = providerName(url)
+      const provider = panProvider(url).name
       const linePrefix = detail.site.name + "-" + provider
       counts[linePrefix] = (counts[linePrefix] || 0) + 1
       tracks.push({
@@ -711,7 +691,7 @@ async function search(ext) {
   const page = Math.max(1, parseInt(ext.page, 10) || 1)
   if (!keyword) return jsonify({ list: [] })
 
-  const sites = enabledSites()
+  const sites = ACTIVE_SITES
   const nested = await mapLimit(sites, 3, function (site) {
     return fetchCardPage(site, searchPath(site, keyword, page), page, "search", keyword)
   })
