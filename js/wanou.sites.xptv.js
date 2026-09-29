@@ -23,6 +23,11 @@ const SITE_INDEX = {}
 for (let i = 0; i < ACTIVE_SITES.length; i++) SITE_INDEX[ACTIVE_SITES[i].id] = ACTIVE_SITES[i]
 const RECOMMEND_SIGNATURE = JSON.stringify([ACTIVE_SITES.map(function (site) { return site.id }), $config.domains || {}])
 
+function normDomain(value) {
+  const match = String(value || "").trim().match(/^(https?:\/\/(?:[a-z0-9.-]+|\[[a-f0-9:]+\])(?::\d{1,5})?)\/?$/i)
+  return match ? match[1].toLowerCase() : ""
+}
+
 function unique(values) {
   const seen = {}
   const result = []
@@ -47,29 +52,9 @@ function cacheSet(key, value) {
   $cache.set(key, JSON.stringify(value))
 }
 
-async function mapLimit(items, limit, action) {
-  const result = new Array(items.length)
-  let cursor = 0
-  const workers = []
-  for (let i = 0; i < Math.min(limit, items.length); i++) {
-    workers.push((async function () {
-      while (cursor < items.length) {
-        const index = cursor++
-        result[index] = await action(items[index], index)
-      }
-    })())
-  }
-  await Promise.all(workers)
-  return result
-}
-
-function checkStatus(response) {
+function responseHtml(response) {
   const status = Number(response.status || response.statusCode || 0)
   if (status && (status < 200 || status >= 300)) throw new Error("HTTP " + status)
-}
-
-function responseHtml(response) {
-  checkStatus(response)
   let html = response.data
   if (typeof html === "string" && html.trim().charAt(0) === '"') {
     try { html = JSON.parse(html) } catch (e) {}
@@ -92,10 +77,7 @@ function monitorDomains(data) {
     const site = SITES[i]
     const record = data.sites[site.name]
     if (!record || !Array.isArray(record.urls)) continue
-    const urls = record.urls.map(function (item) {
-      const match = String(item && item.url || "").trim().match(/^(https?:\/\/(?:[a-z0-9.-]+|\[[a-f0-9:]+\])(?::\d{1,5})?)\/?$/i)
-      return match ? match[1].toLowerCase() : ""
-    }).filter(Boolean)
+    const urls = record.urls.map(function (item) { return normDomain(item && item.url) }).filter(Boolean)
     if (urls.length) result[site.id] = unique(urls)
   }
   return result
@@ -103,8 +85,7 @@ function monitorDomains(data) {
 
 async function refreshMonitor(force) {
   const old = cacheGet(MONITOR_KEY) || { sites: {} }
-  if (!force && !AUTO_UPDATE && old.sites) return old
-  if (!force && old.fetchedAt && Date.now() - old.fetchedAt < DOMAIN_CACHE_INTERVAL) return old
+  if (!force && old.sites && (!AUTO_UPDATE || Date.now() - (old.fetchedAt || 0) < DOMAIN_CACHE_INTERVAL)) return old
   try {
     const response = await $fetch.get(MONITOR_URL + "/api/data", {
       headers: { "User-Agent": UA, Accept: "application/json" }
@@ -120,10 +101,7 @@ function siteDomains(site, snapshot) {
   let override = $config.domains && $config.domains[site.id]
   if (typeof override === "string") override = [override]
   const monitored = snapshot && snapshot.sites && snapshot.sites[site.id] || []
-  return unique((override || []).concat(monitored, site.domains || []).map(function (value) {
-    const match = String(value || "").trim().match(/^(https?:\/\/(?:[a-z0-9.-]+|\[[a-f0-9:]+\])(?::\d{1,5})?)\/?$/i)
-    return match ? match[1].toLowerCase() : ""
-  }).filter(Boolean))
+  return unique((override || []).concat(monitored, site.domains || []).map(normDomain).filter(Boolean))
 }
 
 async function requestSite(site, path, kind) {
@@ -131,10 +109,7 @@ async function requestSite(site, path, kind) {
   const requestPath = raw.charAt(0) === "/" ? raw : "/" + raw
   const snapshot = cacheGet(MONITOR_KEY) || { sites: {} }
   const cachedDomain = $cache.get("wanou_domain_" + site.id)
-  const domains = unique((cachedDomain ? [cachedDomain] : []).concat(siteDomains(site, snapshot)).map(function (value) {
-    const match = String(value || "").trim().match(/^(https?:\/\/(?:[a-z0-9.-]+|\[[a-f0-9:]+\])(?::\d{1,5})?)\/?$/i)
-    return match ? match[1].toLowerCase() : ""
-  }).filter(Boolean))
+  const domains = unique([cachedDomain || ""].concat(siteDomains(site, snapshot)).filter(Boolean))
   let lastError = ""
   for (let i = 0; i < domains.length; i++) {
     try {
@@ -162,7 +137,7 @@ function searchPath(site, keyword, page) {
 
 function parseCardList(site, $, selector, withSource) {
   const list = []
-  const nodes = $(selector || site.listSelector || "#main .module-item").toArray()
+  const nodes = $(selector).toArray()
   for (let i = 0; i < nodes.length; i++) {
     const item = $(nodes[i])
     const picture = item.find(".module-item-pic a").first()
@@ -182,23 +157,21 @@ function parseCardList(site, $, selector, withSource) {
   return list
 }
 
-function pageCount($, current) {
+function pageCount($) {
   let count = 0
   const nodes = $("#page a[href]").toArray()
   for (let i = 0; i < nodes.length; i++) {
-    const href = $(nodes[i]).attr("href") || ""
-    const match = href.match(/\/page\/(\d+)|[?&]page=(\d+)|-(\d+)---\.html(?:[?#]|$)/i)
-    const number = match ? Number(match[1] || match[2] || match[3]) : Number($(nodes[i]).text().trim())
-    if (number > count) count = number
+    const match = ($(nodes[i]).attr("href") || "").match(/\/page\/(\d+)|[?&]page=(\d+)|-(\d+)---\.html(?:[?#]|$)/i)
+    if (match) count = Math.max(count, Number(match[1] || match[2] || match[3]))
   }
-  return count || Math.max(1, current)
+  return count || 1
 }
 
 async function fetchCards(site, path, page, kind, keyword) {
   try {
     const result = await requestSite(site, path, kind)
-    const count = pageCount(result.$, page)
-    const selector = kind === "search" ? ".module-search-item" : site.listSelector
+    const count = pageCount(result.$)
+    const selector = kind === "search" ? ".module-search-item" : site.listSelector || "#main .module-item"
     let list = page > count ? [] : parseCardList(site, result.$, selector, false)
     if (kind === "search") {
       const text = keyword.toLowerCase()
@@ -208,6 +181,7 @@ async function fetchCards(site, path, page, kind, keyword) {
   } catch (e) { return { list: [], pagecount: page } }
 }
 
+// ponytail: 全并发，上限 = 站点数（≤5）。若上游开始限流再换回限流器。
 async function fetchHome(site) {
   try {
     const result = await requestSite(site, "/", "home")
@@ -292,20 +266,14 @@ function recommendFilter() {
 }
 
 function parsePanUrls($) {
+  const nodes = $(".module-row-one, .module-row-info, [data-clipboard-text], [data-link], a.btn-down[href^='http']")
+  const elements = Array.from(new Set(nodes.toArray().concat(nodes.find("[data-link], [data-clipboard-text], a[href^='http']").toArray())))
   const urls = []
-  const nodes = $(".module-row-one, .module-row-info, [data-clipboard-text], [data-link], a.btn-down[href^='http']").toArray()
-  for (let i = 0; i < nodes.length; i++) {
-    const box = $(nodes[i])
-    const elements = [box].concat(box.find("[data-link], [data-clipboard-text], a[href^='http']").toArray())
-    for (let j = 0; j < elements.length; j++) {
-      const element = $(elements[j])
-      const values = [element.attr("href"), element.attr("data-link"), element.attr("data-clipboard-text")].join(" ")
-      const found = values.match(/https?:\/\/[^\s"'<>\\\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+/ig) || []
-      for (let k = 0; k < found.length; k++) {
-        const url = found[k].trim().replace(/&amp;/ig, "&")
-        if (/^https?:\/\//i.test(url)) urls.push(url)
-      }
-    }
+  for (let i = 0; i < elements.length; i++) {
+    const element = $(elements[i])
+    const values = [element.attr("href"), element.attr("data-link"), element.attr("data-clipboard-text")].join(" ")
+    const found = values.match(/https?:\/\/[^\s"'<>\\\u3000-\u303f\u3400-\u9fff\uff00-\uffef]+/ig) || []
+    for (let k = 0; k < found.length; k++) urls.push(found[k].replace(/&amp;/ig, "&"))
   }
   return unique(urls)
 }
@@ -334,7 +302,7 @@ async function getConfig() {
 
 async function updateDomains(sites) {
   await refreshMonitor(true)
-  const lists = await mapLimit(sites, 3, fetchHome)
+  const lists = await Promise.all(sites.map(fetchHome))
   for (let i = 0; i < sites.length; i++) {
     $cache.del("wanou_recommend_v1:recommend:" + sites[i].id)
   }
@@ -349,6 +317,7 @@ async function getCards(ext) {
   const filters = ext.filters || {}
   const id = String(ext.id || "recommend")
   if (id === "recommend" || id === "update-domains") {
+    if (page > 1) return jsonify({ list: [], filter: id === "recommend" ? recommendFilter() : [], page: page, pagecount: 1 })
     const selected = id === "update-domains" ? "all" : String(filters.site || "all")
     const sites = selected === "all" ? ACTIVE_SITES : ACTIVE_SITES.filter(function (site) { return site.id === selected })
     const key = "wanou_recommend_v1:" + id + ":" + selected
@@ -356,11 +325,10 @@ async function getCards(ext) {
     let cards
     if (cached && cached.signature === RECOMMEND_SIGNATURE && Date.now() - cached.fetchedAt < RECOMMEND_CACHE_INTERVAL) cards = cached.list
     else {
-      const nested = id === "update-domains" && page === 1 ? await updateDomains(sites) : await mapLimit(sites, 3, fetchHome)
+      const nested = id === "update-domains" ? await updateDomains(sites) : await Promise.all(sites.map(fetchHome))
       cards = aggregateCards([].concat.apply([], nested))
       cacheSet(key, { signature: RECOMMEND_SIGNATURE, fetchedAt: Date.now(), list: cards })
     }
-    if (page > 1) return jsonify({ list: [], filter: id === "recommend" ? recommendFilter() : [], page: page, pagecount: 1 })
     return jsonify({ list: cards, filter: id === "recommend" ? recommendFilter() : [], page: page, pagecount: 1 })
   }
   if (id.indexOf("site:") !== 0) return jsonify({ list: [] })
@@ -380,7 +348,7 @@ async function getTracks(ext) {
   addSources(sources, Array.isArray(ext.sources) ? ext.sources : [])
   if (!sources.length) addSources(sources, [ext])
   if (!sources.length) return jsonify({ list: [] })
-  const details = await mapLimit(sources, 3, fetchDetail)
+  const details = await Promise.all(sources.map(fetchDetail))
   const used = {}
   const groups = []
   for (let i = 0; i < details.length; i++) {
@@ -410,13 +378,13 @@ async function search(ext) {
   const keyword = String(ext.text || ext.wd || "").trim()
   const page = Math.max(1, parseInt(ext.page, 10) || 1)
   if (!keyword) return jsonify({ list: [] })
-  const nested = await mapLimit(ACTIVE_SITES, 3, function (site) { return fetchCards(site, searchPath(site, keyword, page), page, "search", keyword) })
+  const nested = await Promise.all(ACTIVE_SITES.map(function (site) { return fetchCards(site, searchPath(site, keyword, page), page, "search", keyword) }))
   let cards = []
   let count = page
   for (let i = 0; i < nested.length; i++) {
     cards = cards.concat(nested[i].list)
     count = Math.max(count, nested[i].pagecount)
   }
-  if ($config.aggregateSearch !== false && String($config.aggregateSearch || "true") !== "false") cards = aggregateCards(cards)
+  if (String($config.aggregateSearch || "true") !== "false") cards = aggregateCards(cards)
   return jsonify({ list: cards, page: page, pagecount: count })
 }
