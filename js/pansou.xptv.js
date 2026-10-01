@@ -9,13 +9,12 @@
 const $config = argsify($config_str);
 
 // ================= 常量配置 =================
-const PAN_PIC_BASE = "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/";
 const PAN_PIC_MAP = {
-    baidu:  PAN_PIC_BASE + "baidu.jpg",
-    quark:  PAN_PIC_BASE + "quark.png",
-    aliyun: PAN_PIC_BASE + "ali.jpg",
-    '115':  PAN_PIC_BASE + "115.jpg",
-    tianyi: PAN_PIC_BASE + "189.png"
+    baidu:  "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/baidu.jpg",
+    quark:  "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/quark.png",
+    aliyun: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/ali.jpg",
+    '115':  "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/115.jpg",
+    tianyi: "https://xget.xi-xu.me/gh/power721/alist-tvbox/raw/refs/heads/master/web-ui/public/189.png"
 };
 
 const PAN = { baidu:'baidu', quark:'quark', ali:'aliyun', a189:'tianyi', a115:'115' };
@@ -27,15 +26,15 @@ const ENABLED_TYPES = Object.keys(PAN).filter(function(k) { return $config[k] !=
 
 async function getAPI() {
     if (!PAN_URLS.length) return null;
-    if (PAN_URLS.length === 1) return PAN_URLS[0]; 
+    if (PAN_URLS.length === 1) return PAN_URLS[0];
     for (const url of PAN_URLS) {
-        try { if ((await $fetch.get(url + '/api/health', {timeout: 10000})).status === 200) return url; } catch(e) {}
+        try { if ((await $fetch.get(url + '/api/health', {timeout: 2000})).status === 200) return url; } catch(e) {}
     }
     return PAN_URLS[0];
 }
 
 async function getConfig() {
-    return jsonify({ ver: 1, title: "PanSou 网盘搜索", site: PAN_URLS[0] || "", tabs: [] });
+    return jsonify({ ver: 1, title: "PanSou", site: PAN_URLS[0] || "", tabs: [] });
 }
 
 async function getCards(ext) {
@@ -67,20 +66,14 @@ async function getCards(ext) {
         const list = [];
         Object.keys(data).forEach(function(bKey) {
             (data[bKey] || []).forEach(function(item) {
-                const fKey = B2F[bKey] || bKey;
-
-                const raw = String(item.datetime || '');
-                const dt = raw.slice(0, 4) === "0001" ? '' : raw;
-                const pic = String((item.images && item.images[0]) || "");
                 list.push({
                     vod_id:      item.url,
                     vod_name:    item.note || kw,
-
-                    vod_pic:     /^https?:\/\//i.test(pic) ? pic : (PAN_PIC_MAP[bKey] || ""),
-                    vod_remarks: fKey.toUpperCase() + (dt ? ' | ' + dt.split('T')[0] : ''),
-                    ts:          dt ? new Date(dt).getTime() : 0,
-                    fKey:        fKey,
-                    ext:         { url: item.url, pwd: item.password || "", title: item.note || kw }
+                    vod_pic:     PAN_PIC_MAP[bKey] || "",
+                    vod_remarks: (B2F[bKey] || bKey).toUpperCase() + ' | ' + (item.datetime ? item.datetime.split('T')[0] : ''),
+                    ts:          item.datetime ? new Date(item.datetime).getTime() : 0,
+                    fKey:        B2F[bKey] || bKey,
+                    ext:         jsonify({ url: item.url, pwd: item.password || "", title: item.note || kw })
                 });
             });
         });
@@ -99,7 +92,7 @@ async function getCards(ext) {
 async function getTracks(ext) {
     const { url = "", pwd = "", title = "" } = argsify(ext);
     return jsonify({
-        list: [{ title: '链接详情', tracks: [{ name: title + (pwd ? ' ['+pwd+']' : ''), pan: url }] }]
+        list: [{ title: '链接详情', tracks: [{ name: title + (pwd ? ' ['+pwd+']' : ''), pan: url, ext: jsonify({}) }] }]
     });
 }
 
